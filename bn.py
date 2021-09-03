@@ -50,7 +50,12 @@ class BinaryNode:
         
         return r
 
+
 class BayesianNetwork:
+    """
+    A class for a Bayesian Network that uses the Binary Nodes class defined above.
+    """
+
     def __init__(self):
         self.graph = {}
         self.nodes = []
@@ -94,7 +99,7 @@ class BayesianNetwork:
         if name in self.graph:
             self.graph[name].add_pt(df)
             
-    def sample(self, query, evidence, n_samples):
+    def query(self, query, evidence, n_samples):
         """
         Applies the direct sampling algorithm
         
