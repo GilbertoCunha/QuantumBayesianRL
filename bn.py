@@ -99,7 +99,7 @@ class BayesianNetwork:
         if name in self.graph:
             self.graph[name].add_pt(df)
             
-    def query(self, query, evidence, n_samples):
+    def query(self, query, evidence={}, n_samples=1000):
         """
         Applies the direct sampling algorithm
         

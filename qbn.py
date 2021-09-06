@@ -1,18 +1,18 @@
-from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit
+from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit, transpile
+from qiskit.providers.aer import QasmSimulator
+from tqdm import tqdm
+import pandas as pd
 import numpy as np
+import itertools
+import math
 
 
 class QuantumBayesianNetwork:
 
     def __init__(self, bn):
-        # Dictionary mapping node names to qbit numbers
-        self.name_to_qbit = {name: i for i, name in enumerate(bn.nodes)}
-        
-        # Dictionary mapping qbit numbers to node names
-        self.qbit_to_name = {i: name for i, name in enumerate(bn.nodes)}
         
         # Dictionary mapping qbit numbers to a list of qbit parents (numbers also)
-        self.qbit_parents = {self.name_to_qbit[name]: [self.name_to_qbit[p] for p in bn.graph[name].parents] for name in bn.nodes}
+        self.qbit_parents = {name: bn.graph[name].parents for name in bn.nodes}
         
         # Dictionary where keys are qubit numbers and values are lists of tuples
         # First element of each tuple an the angle of rotation
@@ -42,38 +42,42 @@ class QuantumBayesianNetwork:
                     group[group[name]==0]["Prob"].iloc[0],
                     dict(group[parents].iloc[0])
                 ) for _, group in pt.groupby(parents)]
-                ps = [(p1, p0, {self.name_to_qbit[n]: d[n] for n in d}) for (p1, p0, d) in ps]
             else:
                 ps = [(pt[pt[name]==1]["Prob"].iloc[0], pt[pt[name]==0]["Prob"].iloc[0], {})]
                 
             # Calculate list of rotations
-            r[self.name_to_qbit[name]] = [(angle(p1, p0), states) for p1, p0, states in ps]
+            r[name] = [(angle(p1, p0), states) for p1, p0, states in ps]
                 
         return r
     
-    def state_preparation(self, qr):
+    def state_preparation(self, qr, names_to_qbits):
         # Create quantum circuit
         n_qubits = len(qr)
         circuit = QuantumCircuit(qr)
         
+        # Get the inverse dictionary
+        qbits_to_names = {v: k for k, v in names_to_qbits.items()}
+        
         # Apply controlled rotation gates to every qubit
         for i in range(n_qubits):
+            i_name = qbits_to_names[i]
+            
             # Get all rotation angles and control qubits
-            angles = self.ry_angles[i]
-            q_controls = [qr[j] for j in self.qbit_parents[i]]
+            angles = self.ry_angles[i_name]
+            q_controls = [qr[names_to_qbits[j_name]] for j_name in self.qbit_parents[i_name]]
             
             # Iterate all rotations
             for theta, states in angles:
 
                 # Apply a multiple controlled rotation gate
                 if len(q_controls) > 0:
-                    for j in states:
-                        if states[j] == 0:
-                            circuit.x(j)
+                    for name in states:
+                        if states[name] == 0:
+                            circuit.x(names_to_qbits[name])
                     circuit.mcry(theta=theta, q_controls=q_controls, q_target=qr[i])
-                    for j in states:
-                        if states[j] == 0:
-                            circuit.x(j)
+                    for name in states:
+                        if states[name] == 0:
+                            circuit.x(names_to_qbits[name])
                 
                 # Apply a rotation gate
                 else:
@@ -107,58 +111,129 @@ class QuantumBayesianNetwork:
 
         return circuit
 
-    def grover_diffuser(qr):
+    def grover_diffuser(self, qr, names_to_qbits):
         # Create quantum circuit
         circuit = QuantumCircuit(qr)
 
         # Apply hermitian conjugate state preparation circuit
-        circuit.compose(self.state_preparation(qr).inverse(), inplace=True)
+        circuit.compose(self.state_preparation(qr, names_to_qbits).inverse(), inplace=True)
+        circuit.barrier()
 
         # Flip about the zero state
         circuit.x(qr)
         circuit.mcp(np.pi, qr[:-1], qr[-1])
         circuit.x(qr)
-
+        circuit.barrier()
+        
         # Apply state preparation circuit
-        circuit.compose(state_preparation, inplace=True)
+        circuit.compose(self.state_preparation(qr, names_to_qbits), inplace=True)
         return circuit
 
-    def grover_operator(good_states, qr):
+    def grover_operator(self, good_states, qr, names_to_qbits):
         circuit = QuantumCircuit(qr)
         circuit.compose(self.grover_oracle(good_states, qr), inplace=True)
-        circuit.compose(self.grover_diffuser(qr), inplace=True)
+        circuit.barrier()
+        circuit.compose(self.grover_diffuser(qr, names_to_qbits), inplace=True)
         return circuit
+    
+    @staticmethod
+    def bitGen(n):
+        return [''.join(i) for i in itertools.product('01', repeat=n)]
 
-    def sample(self, query, evidence, n_samples=1000):
-
-        # Number of grover operator iterations
-        grover_iter = 1
-
-        # Boolean flag to stop when evidence matches
-        done = False
+    def query(self, query, evidence={}, n_samples=1000):
+        
+        # Number of shots of the circuit
+        shots = n_samples if (len(evidence) == 0) else 1
+        
+        # Define qbit names
+        evidence_names = [k for k in evidence]
+        other_names = [name for name in self.qbit_parents if name not in evidence_names]
+        names = other_names + evidence_names
+        names_to_qbits = {name: i for i, name in enumerate(names)}
+        qbits_to_names = {v: k for k, v in names_to_qbits.items()}
 
         # Define the good states
+        other_states = self.bitGen(len(other_names))
+        evidence_state = ''.join([str(evidence[k]) for k in evidence])
+        good_states = [evidence_state[::-1] + o for o in other_states]
 
-        # Define quantum register
-        qr = QuantumRegister(len(self.name_to_qbit))
+        # Define quantum and classical registers
+        qr = QuantumRegister(len(names_to_qbits))
+        cr = ClassicalRegister(len(names_to_qbits))
+        
+        # Initialize samples
+        samples = {name: [] for name in other_names}
 
-        # Define two classical registers
-        # One for evidence qbits, one for the rest
-        er = ClassicalRegister(len(evidence))
-        cr = ClassicalRegister(n_qubits - len(evidence))
+        # Get the required number of samples
+        iterations = n_samples if (len(evidence) != 0) else 1
+        for _ in tqdm(range(iterations), total=iterations, desc="Sampling"):
+        
+            # Constants for number of grover iterations
+            c = 1.4
+            l = 1
 
-        # Apply grover's algorithm repeatedly until 
-        # measured evidence qubit values match the given evidence
-        while not done:
+            # Boolean flag to stop when evidence matches
+            done = False
+            
+            # Apply grover's algorithm repeatedly until 
+            # measured evidence qubit values match the given evidence
+            while not done:
+                # Update grover iterations
+                m = int(math.ceil(c**l))
+                grover_iter = int(np.random.randint(1, m+1))
+                
+                # Create quantum circuit
+                circuit = QuantumCircuit(qr, cr)
 
-            # Create quantum circuit
-            circuit = QuantumCircuit(qr, cr, er)
+                # Apply state preparation
+                circuit.compose(self.state_preparation(qr, names_to_qbits), inplace=True)
+                circuit.barrier()
 
-            # Apply state preparation
-            circuit.compose(self.state_preparation(qr), inplace=True)
+                # Apply grover operator multiple times
+                if len(evidence) != 0:
+                    for _ in range(grover_iter):
+                        circuit.compose(self.grover_operator(good_states, qr, names_to_qbits), inplace=True)
+                    circuit.barrier()
 
-            # Apply grover operator multiple times
-            for _ in range(grover_iter):
-                circuit.compose(self.grover_operator(good_states, qr), inplace=True)
+                # Apply measurements
+                circuit.measure(qr, cr)
 
-            # TODO: measure, check if evidence is correct, repeat
+                # Perform one measurement
+                simulator = QasmSimulator()
+                compiled_circuit = transpile(circuit, simulator)
+                job = simulator.run(compiled_circuit, shots=shots)
+                counts = job.result().get_counts(compiled_circuit)
+                result = list(counts.keys())[0] if (len(evidence) != 0) else counts
+                
+                # Evidence and query measurements
+                if len(evidence) != 0:
+                    ev_meas = result[:len(evidence)][::-1]
+                    que_meas = result[len(evidence):][::-1]
+
+                # If evidence matches, append sample
+                if (len(evidence) != 0) and (ev_meas == evidence_state):
+                    # Get evidence and non evidence measurement
+                    for i, v in enumerate(que_meas):
+                        samples[qbits_to_names[i]].append(int(v))
+                    done = True
+                    
+                # Otherwise double the number of grover operators applied
+                elif len(evidence) != 0:
+                    l += 1
+                   
+                # When there is no evidence
+                else:
+                    for key in result:
+                        for i, v in enumerate(key[::-1]):
+                            for _ in range(result[key]):
+                                samples[qbits_to_names[i]].append(int(v))
+                    done = True
+                    
+        # Turn samples into probability table
+        df = pd.DataFrame(samples)
+        df = df.value_counts(normalize=True).to_frame("Prob")
+        
+        # Group over query variables and sum over all other variables
+        df = df.groupby(query).sum()
+            
+        return df
