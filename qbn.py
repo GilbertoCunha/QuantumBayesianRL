@@ -86,7 +86,7 @@ class QuantumBayesianNetwork:
         return circuit
 
     @staticmethod
-    def grover_oracle(good_states, qr):
+    def grover_oracle(qr, good_states):
         # good_states = ["0010", "1011", "1100"]
 
         # Create quantum circuit
@@ -101,8 +101,7 @@ class QuantumBayesianNetwork:
                     circuit.x(i)
 
             # Apply phase flip
-            qubits = list(range(len(good_states[0])))
-            circuit.mcp(np.pi, qubits[:-1], qubits[-1])
+            circuit.mcp(np.pi, qr[:-1], qr[-1])
 
             # Reflip unset qubits in good state
             for i, value in enumerate(state):
@@ -129,9 +128,9 @@ class QuantumBayesianNetwork:
         circuit.compose(self.state_preparation(qr, names_to_qbits), inplace=True)
         return circuit
 
-    def grover_operator(self, good_states, qr, names_to_qbits):
+    def grover_operator(self, qr, good_states, names_to_qbits):
         circuit = QuantumCircuit(qr)
-        circuit.compose(self.grover_oracle(good_states, qr), inplace=True)
+        circuit.compose(self.grover_oracle(qr, good_states), inplace=True)
         circuit.barrier()
         circuit.compose(self.grover_diffuser(qr, names_to_qbits), inplace=True)
         return circuit
@@ -155,7 +154,7 @@ class QuantumBayesianNetwork:
         # Define the good states
         other_states = self.bitGen(len(other_names))
         evidence_state = ''.join([str(evidence[k]) for k in evidence])
-        good_states = [evidence_state[::-1] + o for o in other_states]
+        good_states = [o + evidence_state for o in other_states]
 
         # Define quantum and classical registers
         qr = QuantumRegister(len(names_to_qbits))
@@ -166,7 +165,7 @@ class QuantumBayesianNetwork:
 
         # Get the required number of samples
         iterations = n_samples if (len(evidence) != 0) else 1
-        for _ in tqdm(range(iterations), total=iterations, desc="Sampling"):
+        for _ in tqdm(range(iterations), total=iterations, desc="Sampling", leave=False):
         
             # Constants for number of grover iterations
             c = 1.4
@@ -192,7 +191,7 @@ class QuantumBayesianNetwork:
                 # Apply grover operator multiple times
                 if len(evidence) != 0:
                     for _ in range(grover_iter):
-                        circuit.compose(self.grover_operator(good_states, qr, names_to_qbits), inplace=True)
+                        circuit.compose(self.grover_operator(qr, good_states, names_to_qbits), inplace=True)
                     circuit.barrier()
 
                 # Apply measurements
@@ -200,9 +199,8 @@ class QuantumBayesianNetwork:
 
                 # Perform one measurement
                 simulator = QasmSimulator()
-                compiled_circuit = transpile(circuit, simulator)
-                job = simulator.run(compiled_circuit, shots=shots)
-                counts = job.result().get_counts(compiled_circuit)
+                job = simulator.run(circuit, shots=shots)
+                counts = job.result().get_counts(circuit)
                 result = list(counts.keys())[0] if (len(evidence) != 0) else counts
                 
                 # Evidence and query measurements
