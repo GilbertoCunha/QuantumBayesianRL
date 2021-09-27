@@ -12,12 +12,20 @@ class QuantumBayesianNetwork:
     def __init__(self, bn):
         
         # Dictionary mapping qbit numbers to a list of qbit parents (numbers also)
-        self.qbit_parents = {name: bn.graph[name].parents for name in bn.nodes}
+        key = lambda name: self.node_depth(bn, bn.graph[name])
+        names = sorted(bn.nodes, key=key)
+        self.parent_dict = {name: bn.graph[name].parents for name in names}
         
         # Dictionary where keys are qubit numbers and values are lists of tuples
         # First element of each tuple an the angle of rotation
         # Second element is a dictionary that represents the state of the control qubits (1 if set, 0 if not)
         self.ry_angles = self.get_ry_angles(bn)
+        
+    def node_depth(self, bn, node):
+        r = 0
+        if len(node.parents) != 0:
+            r = 1 + max([self.node_depth(bn, bn.graph[p]) for p in node.parents])
+        return r
         
     def get_ry_angles(self, bn):
         # Create result dictionary
@@ -59,12 +67,12 @@ class QuantumBayesianNetwork:
         qbits_to_names = {v: k for k, v in names_to_qbits.items()}
         
         # Apply controlled rotation gates to every qubit
-        for i in range(n_qubits):
-            i_name = qbits_to_names[i]
+        for i_name in self.parent_dict:
+            i = names_to_qbits[i_name]
             
             # Get all rotation angles and control qubits
             angles = self.ry_angles[i_name]
-            q_controls = [qr[names_to_qbits[j_name]] for j_name in self.qbit_parents[i_name]]
+            q_controls = [qr[names_to_qbits[j_name]] for j_name in self.parent_dict[i_name]]
             
             # Iterate all rotations
             for theta, states in angles:
@@ -146,7 +154,7 @@ class QuantumBayesianNetwork:
         
         # Define qbit names
         evidence_names = [k for k in evidence]
-        other_names = [name for name in self.qbit_parents if name not in evidence_names]
+        other_names = [name for name in self.parent_dict if name not in evidence_names]
         names = other_names + evidence_names
         names_to_qbits = {name: i for i, name in enumerate(names)}
         qbits_to_names = {v: k for k, v in names_to_qbits.items()}
@@ -201,7 +209,7 @@ class QuantumBayesianNetwork:
                 simulator = QasmSimulator()
                 job = simulator.run(circuit, shots=shots)
                 counts = job.result().get_counts(circuit)
-                result = list(counts.keys())[0] if (len(evidence) != 0) else counts
+                result = list(counts.keys())[0] if (shots == 1) else counts
                 
                 # Evidence and query measurements
                 if len(evidence) != 0:
