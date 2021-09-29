@@ -146,6 +146,6 @@ class BayesianNetwork:
         df = df.value_counts(normalize=True).to_frame("Prob")
         
         # Group over query variables and sum over all other variables
-        df = df.groupby(query).sum()
+        df = df.groupby(query).sum().reset_index()
         
         return df
