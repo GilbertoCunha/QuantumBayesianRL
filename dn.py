@@ -1,8 +1,10 @@
 from bn import BayesianNetwork, BinaryNode
+from qbn import QuantumBayesianNetwork
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 import itertools
+
 
 class BinaryActionNode(BinaryNode):
     
@@ -85,7 +87,7 @@ class DecisionNetwork(BayesianNetwork):
         r = [n for n in self.nodes if type(self.graph[n]) is BinaryNode]
         return r
     
-    def query_decision(self, query, evidence, n_samples=1000):
+    def query_decision(self, query, evidence, n_samples=1000, quantum=False):
         # Get all action nodes
         action_nodes = self.get_action_nodes()
         
@@ -107,7 +109,11 @@ class DecisionNetwork(BayesianNetwork):
                 self.graph[action_node].add_value(actions[action_node])
                 
             # Perform query
-            df = self.query(query=[query], evidence=evidence, n_samples=n_samples)
+            if quantum:
+                qbn = QuantumBayesianNetwork(self)
+                df = qbn.query(query=[query], evidence=evidence, n_samples=n_samples)
+            else:
+                df = self.query(query=[query], evidence=evidence, n_samples=n_samples)
             
             # Get expected utility
             eu = float((df[query] * df["Prob"]).sum())
