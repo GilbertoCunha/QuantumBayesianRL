@@ -89,33 +89,7 @@ class DynamicDecisionNetwork(BayesianNetwork):
                 return "THIS CANT HAPPEN"
             self.node_map[node].add_value(evidence[node])
         
-        # Create empty sampling dictionary
-        sample_dict = {name: [] for name in self.node_map}
-        
-        # Create multiple samples
-        cur_samples = 0
-        while (cur_samples < n_samples):
-            
-            # Sample a result from node
-            sample = {}
-            for node in self.node_queue:
-                sample[node] = self.node_map[node].get_sample(sample)
-            
-            # Pass sample results to sample_dict if it matches with evidence
-            matches = [sample[name] == evidence[name] for name in evidence]
-            if all(matches):
-                for name in sample_dict:
-                    sample_dict[name].append(sample[name])
-                cur_samples += 1
-                
-        # Turn result into probability table
-        df = pd.DataFrame(sample_dict)
-        df = df.value_counts(normalize=True).to_frame("Prob")
-        
-        # Group over query variables and sum over all other variables
-        df = df.groupby(query).sum().reset_index()
-        
-        return df
+        return super().query(query, evidence, n_samples)
     
     def initialize(self):
         # Number the nodes

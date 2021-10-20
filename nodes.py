@@ -30,7 +30,7 @@ class StaticNode:
         """
         
         # Get the row relative to the current sample where current node is false
-        sample = {name: sample[name] for name in sample if (name in self.pt and name != self.get_id())}
+        sample = {k: v for k, v in sample.items() if (k in self.pt) and (k != self.get_id())}
         df = self.pt
         for name in sample:
             df = df.loc[df[name] == sample[name]]
@@ -60,7 +60,7 @@ class StaticUtilityNode(StaticNode):
     pass
 
 
-class StateNode:
+class StateNode(StaticNode):
     def __init__(self, name: str, time: int):
         self.name: str = name
         self.time: int = time
@@ -73,23 +73,6 @@ class StateNode:
             
     def get_time(self) -> int:
         return self.time
-
-    def add_pt(self, pt: dict[Union[Id, str], list[int]]):
-        self.pt = pd.DataFrame(pt)
-        
-    def get_sample(self, sample: dict[Id, int]) -> int:
-        # Get the row relative to the current sample where current node is false
-        sample = {k: v for k, v in sample.items() if (k in self.pt) and (k != self.get_id())}
-        df = self.pt
-        for node_id in sample:
-            df = df.loc[df[node_id] == sample[node_id]]
-        df = df.loc[df[self.get_id()] == 0]
-        
-        # Generate random number
-        number = np.random.uniform()
-        r = int(np.random.uniform() > df["Prob"])
-        
-        return r
         
     
 class EvidenceNode(StateNode):
