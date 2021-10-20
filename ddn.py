@@ -1,5 +1,6 @@
 from __future__ import annotations
 from nodes import StateNode, EvidenceNode, ActionNode, UtilityNode
+from bn import BayesianNetwork
 from typing import Type, Union
 import networkx as nx
 import pandas as pd
@@ -11,28 +12,12 @@ Edge = (Id, Id)
 Node = Union[StateNode, EvidenceNode, ActionNode, UtilityNode]
 
 
-class DynamicDecisionNetwork:
+class DynamicDecisionNetwork(BayesianNetwork):
     def __init__(self):
         self.node_map: dict[Id, Node] = {}
         self.graph: dict[Id, [Id]] = {}
         self.knowns: list[Id, int] = {}
         self.time: int = 0
-            
-        
-    def add_nodes(self, nodes: list[Node]):
-        for node in nodes:
-            if node.get_id() not in self.node_map:
-                self.node_map[node.get_id()] = node
-                self.graph[node.get_id()] = []
-                
-        
-    def add_edges(self, edges: list[Edge]):
-        for edge in edges:
-            s, d = edge
-            if s not in self.graph:
-                self.graph[s] = []
-            self.graph[s].append(d)
-            
             
     def draw(self):
         # Create nx graph
@@ -62,77 +47,65 @@ class DynamicDecisionNetwork:
         # Draw node labels
         labels = {n: n for n in self.node_map}
         nx.draw_networkx_labels(G, pos, labels)
-        
-            
-    def is_leaf(self, node_id: Id) -> bool:
-        # For a node to be leaf it cant have children
-        return len(self.graph[node_id]) == 0
-    
-    
-    def is_root(self, node_id: Id) -> bool:
-        # For a node to be root it cant have parents
-        parents = []
-        for key in self.graph:
-            if node_id in self.graph[key]:
-                parents.append(key)
-        return len(parents) == 0
-    
-        
-    def get_edges(self) -> list[(Id, Id)]:
-        edges = []
-        for s in self.graph:
-            for d in self.graph[s]:
-                edges.append((s, d))
-        return edges
-    
-        
-    def add_pt(self, node_id: Id, pt: dict[Union[Id, str], int]):
-        self.node_map[node_id].add_pt(pt)
-        
-        
-    def get_nodes_by_type(self, node_type: Type(Node)) -> list[Id]:
-        return [k for k, v in self.node_map.items() if type(v) is node_type]
-    
     
     def get_nodes_by_type_and_time(self, node_type: Type(Node), time: int) -> list[Id]:
         return [node for node in self.get_nodes_by_type(node_type) if self.node_map[node].get_time() == time]
     
-    
+    def increase_time_step(self):
+        # Increase every node time step
+        order_key = lambda nid: -nid[1] # Order them in decreasing time order
+        node_ids = sorted([nid for nid in self.node_map], key=order_key)
+        for (name, t) in node_ids:
+            self.node_map[(name, t)].time += 1 # Increase time attribute
+            self.node_map[(name, t+1)] = self.node_map.pop((name, t))  # increase time in id
+            
+            # increase time in PT ID columns
+            pt = self.node_map[(name, t+1)].pt
+            columns = list(pt.columns)
+            new_columns = {c: (c[0],c[1]+1) for c in columns if c != "Prob"}
+            new_columns["Prob"] = "Prob"
+            pt = pt.rename(columns=new_columns)
+            self.node_map[(name, t+1)].pt = pt
+            
+        # Increase every edge time step
+        for (n1, t1) in node_ids:
+            for i, (n2, t2) in enumerate(self.graph[(n1, t1)]):
+                self.graph[(n1, t1)][i] = (n2, t2+1)
+            self.graph[(n1, t1+1)] = self.graph.pop((n1, t1))
+            
+        # Increase time for node queue
+        for i, (name, t) in enumerate(self.node_queue):
+            self.node_queue[i] = (name, t+1)
+            
+        # Increase own time clock
+        self.time += 1
+        
     def query(self, query: list[Id], evidence: dict[Id, int] = {}, n_samples: int = 1000) -> pd.DataFrame:
         
         # Add value of actions to the nodes
-        action_nodes = [k for k in evidence if type(self.node_map[k]) is ActionNode]
+        action_nodes = self.get_nodes_by_type(ActionNode)
         for node in action_nodes:
+            if node not in evidence:
+                return "THIS CANT HAPPEN"
             self.node_map[node].add_value(evidence[node])
         
         # Create empty sampling dictionary
-        sample_dict = {node_id: [] for node_id in self.node_map}
+        sample_dict = {name: [] for name in self.node_map}
         
         # Create multiple samples
         cur_samples = 0
         while (cur_samples < n_samples):
             
-            # Create empty sample
+            # Sample a result from node
             sample = {}
-            queue = [k for k in self.node_map if self.is_root(k)]
-            
-            # Sample a result from each root node
-            while len(queue) != 0:
-                
-                # Sample from head of queue
-                sample[queue[0]] = self.node_map[queue[0]].get_sample(sample)
-                
-                # Add head's children to queue
-                queue += self.graph[queue[0]]
-                
-                # Remove head from queue
-                queue.pop(0)
+            for node in self.node_queue:
+                sample[node] = self.node_map[node].get_sample(sample)
             
             # Pass sample results to sample_dict if it matches with evidence
-            matches = [sample[node_id] == evidence[node_id] for node_id in evidence]
+            matches = [sample[name] == evidence[name] for name in evidence]
             if all(matches):
-                for node_id in sample_dict:
-                    sample_dict[node_id].append(sample[node_id])
+                for name in sample_dict:
+                    sample_dict[name].append(sample[name])
                 cur_samples += 1
                 
         # Turn result into probability table
@@ -144,32 +117,15 @@ class DynamicDecisionNetwork:
         
         return df
     
-    
-    def increase_time_step(self):
-        # Increase every node time step
-        order_key = lambda nid: -nid[1] # Order them in decreasing time order
-        node_ids = sorted([nid for nid in self.node_map], key=order_key)
-        for (name, t) in node_ids:
-            self.node_map[(name, t)].time += 1
-            self.node_map[(name, t+1)] = self.node_map.pop((name, t))
-            
-        # Increase every edge time step
-        for (n1, t1) in node_ids:
-            for i, (n2, t2) in enumerate(self.graph[(n1, t1)]):
-                self.graph[(n1, t1)][i] = (n2, t2+1)
-            self.graph[(n1, t1+1)] = self.graph.pop((n1, t1))
-            
-        # Increase own time clock
-        self.time += 1
-        
-    
     def initialize(self):
+        # Number the nodes
+        self.create_node_numbering()
+        
         # Get all evidence and reward nodes ids
         init_nodes = self.get_nodes_by_type(EvidenceNode) + self.get_nodes_by_type(UtilityNode)
         
         # Get a single sample from the initial network
-        self.node_map[("Action", 0)].add_value(1) # FIX THIS
-        sample = self.query(query=init_nodes, n_samples=1)
+        sample = self.query(query=init_nodes, evidence={("Action", 0): 1}, n_samples=1) # FIX EVIDENCE
         sample = {col: int(sample[col]) for col in sample if col != "Prob"}
         self.knowns = sample
         
@@ -181,11 +137,22 @@ class DynamicDecisionNetwork:
         for nid, node in self.node_map.items():
             # Add action nodes
             if type(node) is ActionNode:
-                new_nodes.append(ActionNode(node.get_name(), node.get_time()-1, node.get_actions()))
+                new_node = ActionNode(node.get_name(), node.get_time()-1, node.get_actions())
             elif type(node) is EvidenceNode:
-                new_nodes.append(EvidenceNode(node.get_name(), node.get_time()-1))
+                new_node = EvidenceNode(node.get_name(), node.get_time()-1)
             elif type(node) is UtilityNode:
-                new_nodes.append(UtilityNode(node.get_name(), node.get_time()-1))
+                new_node = UtilityNode(node.get_name(), node.get_time()-1)
+                
+            # Decrease time in new PTs
+            if type(node) in [EvidenceNode, UtilityNode]:
+                pt = node.pt
+                columns = list(pt.columns)
+                new_columns = {c: (c[0],c[1]-1) for c in columns if c != "Prob"}
+                new_columns["Prob"] = "Prob"
+                new_node.pt = pt.rename(columns=new_columns)
+                
+            if type(node) in [EvidenceNode, UtilityNode, ActionNode]:
+                new_nodes.append(new_node)
         self.add_nodes(new_nodes)
         
         # Get node groups
@@ -214,4 +181,21 @@ class DynamicDecisionNetwork:
         
         # Change X1 cpt to X2 cpt
         for (n, t) in X2Nodes:
-            self.node_map[(n, t-1)].pt = self.node_map[(n, t)].pt
+            
+            # remove previous state column and renormalize pt
+            pt = self.node_map[(n, t)].pt
+            if (n, t-1) in pt.columns:
+                group_cols = [c for c in pt.columns if (c != (n, t-1) and c != "Prob")]
+                pt = pt.groupby(group_cols)[["Prob"]].agg("sum").reset_index()
+                pt["Prob"] = pt["Prob"] / pt["Prob"].sum()
+            
+            # decrease time in PT ID columns
+            columns = list(pt.columns)
+            new_columns = {c: (c[0],c[1]-1) for c in columns if c != "Prob"}
+            new_columns["Prob"] = "Prob"
+            pt = pt.rename(columns=new_columns)
+            
+            self.node_map[(n, t-1)].pt = pt
+            
+        # Get the new node queue 
+        self.create_node_numbering()

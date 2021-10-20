@@ -1,54 +1,11 @@
+from __future__ import annotations
+from nodes import StaticNode
 import networkx as nx
 import pandas as pd
 import numpy as np
 
-class BinaryNode:
-    """
-    A class for a Bayesian Network node of a boolean random variable
-    """
-    
-    def __init__(self, name):
-        self.name = name
-        self.parents = []
-        self.children = []
-        self.pt = None
-        
-    def add_child(self, name):
-        self.children.append(name)
-        
-    def add_parent(self, name):
-        self.parents.append(name)
-        
-    def add_pt(self, df):
-        """
-        Adds a probability table to this node
-        """
-        self.pt = df
-        
-    def is_root(self):
-        return len(self.parents) == 0
-    
-    def is_leaf(self):
-        return len(self.children) == 0
-    
-    def get_sample(self, sample):
-        """
-        Samples this node via the direct sampling algorithm
-        given previous acquired samples (of ancester nodes)
-        """
-        
-        # Get the row relative to the current sample where current node is false
-        sample = {name: sample[name] for name in sample if name in self.parents}
-        df = self.pt
-        for name in sample:
-            df = df.loc[df[name] == sample[name]]
-        df = df.loc[df[self.name] == 0]
-        
-        # Generate random number
-        number = np.random.uniform()
-        r = int(np.random.uniform() > df["Prob"])
-        
-        return r
+# Defining types
+Edge = (str, str)
 
 
 class BayesianNetwork:
@@ -57,13 +14,12 @@ class BayesianNetwork:
     """
 
     def __init__(self):
-        self.graph = {}
-        self.nodes = []
-        self.edges = []
+        self.node_map: dict[str, StaticNode] = {}
+        self.graph: dict[str, list[str]] = {}
         
     def draw(self):
         G = nx.DiGraph(directed=True)
-        G.add_edges_from(self.edges)
+        G.add_edges_from(self.get_edges())
         options = {
             'node_color': 'orange',
             'node_size': 3000,
@@ -73,46 +29,78 @@ class BayesianNetwork:
         }
         nx.draw_networkx(G, arrows=True, **options)
         
-    def add_node(self, name):
-        if name not in self.graph:
-            self.graph[name] = BinaryNode(name)
-            self.nodes.append(name)
-            
-    def add_nodes(self, names):
-        for name in names:
-            self.add_node(name)
+    def add_nodes(self, nodes: list[StaticNode]):
+        for node in nodes:
+            if node.get_id() not in self.node_map:
+                self.node_map[node.get_id()] = node
+                self.graph[node.get_id()] = []
         
-    def add_edge(self, origin, dest):
-        if (origin in self.graph) and (dest in self.graph):
-            self.graph[origin].add_child(dest)
-            self.graph[dest].add_parent(origin)
-            self.edges.append((origin, dest))
+    def add_edges(self, edges: list[Edge]):
+        for edge in edges:
+            s, d = edge
+            if s not in self.graph:
+                self.graph[s] = []
+            self.graph[s].append(d)
             
-    def add_edges(self, edges):
-        for o, d in edges:
-            self.add_edge(o, d)
+    def create_node_numbering(self):
+        nodes = [n for n in self.node_map if self.is_root(n)]
+        while len(nodes) < len(self.node_map):
+            for node in self.node_map:
+                if node not in nodes:
+                    parents = self.get_parents(node)
+                    if set(parents).issubset(nodes):
+                        nodes.append(node)
+        self.node_queue = nodes
+        
+    def initialize(self):
+        self.create_node_numbering()
             
-    def add_node_pt(self, name, df):
-        """
-        Adds the conditional probability table to a node
-        """
-        if name in self.graph:
-            self.graph[name].add_pt(df)
+    def get_edges(self) -> list[(str, str)]:
+        edges = []
+        for s in self.graph:
+            for d in self.graph[s]:
+                edges.append((s, d))
+        return edges
+    
+    def get_parents(self, node_id: str) -> list[str]:
+        parents = []
+        for nid in self.node_map:
+            if node_id in self.graph[nid]:
+                parents.append(nid)
+        return parents
             
-    def query(self, query, evidence={}, n_samples=1000):
+    def is_leaf(self, node_id: str) -> bool:
+        # For a node to be leaf it cant have children
+        return len(self.graph[node_id]) == 0
+    
+    def is_root(self, node_id: str) -> bool:
+        # For a node to be root it cant have parents
+        parents = []
+        for key in self.graph:
+            if node_id in self.graph[key]:
+                parents.append(key)
+        return len(parents) == 0
+            
+    def add_pt(self, node_id: str, pt: dict[str, int]):
+        self.node_map[node_id].add_pt(pt) 
+        
+    def get_nodes_by_type(self, node_type: Type(Node)) -> list[str]:
+        return [k for k, v in self.node_map.items() if type(v) is node_type]
+            
+    def query(self, query: list[str], evidence: dict[str, int] = {}, n_samples: int = 1000) -> pd.DataFrame:
         """
         Applies the direct sampling algorithm
         
         Arguments:
-            - query ([str]): list of random variables to get the joint distribution from
-            - evidence ({str: int}): dictionary of random variables and their respective values as evidence
+            - query ([Id]): list of random variables to get the joint distribution from
+            - evidence ({Id: int}): dictionary of random variables and their respective values as evidence
             - n_samples (int): number of samples to retrieve
             
         Return (pd.Dataframe): a dataframe that represents the joint distribution
         """
         
         # Create empty sampling dictionary
-        sample_dict = {name: [] for name in self.graph}
+        sample_dict = {name: [] for name in self.node_map}
         
         # Create multiple samples
         cur_samples = 0
@@ -120,19 +108,11 @@ class BayesianNetwork:
             
             # Create empty sample and get root nodes
             sample = {}
-            queue = [name for name in self.graph if self.graph[name].is_root()]
             
             # Sample a result from each root node
-            while len(queue) != 0:
-                
+            for node in self.node_queue:
                 # Sample from head of queue
-                sample[queue[0]] = self.graph[queue[0]].get_sample(sample)
-                
-                # Add head's children to queue
-                queue += self.graph[queue[0]].children
-                
-                # Remove head from queue
-                queue.pop(0)
+                sample[node] = self.node_map[node].get_sample(sample)
             
             # Pass sample results to sample_dict if it matches with evidence
             matches = [sample[name] == evidence[name] for name in evidence]

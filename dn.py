@@ -1,100 +1,59 @@
-from bn import BayesianNetwork, BinaryNode
+from __future__ import annotations
+from nodes import StaticNode, StaticActionNode, StaticUtilityNode
 from qbn import QuantumBayesianNetwork
 import matplotlib.pyplot as plt
+from bn import BayesianNetwork
+from typing import Type, Union
 import networkx as nx
 import pandas as pd
 import itertools
 
-
-class BinaryActionNode(BinaryNode):
-    
-    def __init__(self, name, actions):
-        super().__init__(name)
-        self.actions = actions
-        
-    def add_value(self, value):
-        self.pt = pd.DataFrame({self.name: [value, 1-value], "Prob": [1, 0]})
-
-
-class BinaryUtilityNode(BinaryNode):
-    pass
-
+# Defining types
+Node = Union[StaticNode, StaticActionNode, StaticUtilityNode]
 
 class DecisionNetwork(BayesianNetwork):
     
     def __init__(self):
-        self.graph = {}
-        self.nodes = []
-        self.edges = []
-        
-    def add_action_node(self, name, actions):
-        if name not in self.graph:
-            self.graph[name] = BinaryActionNode(name, actions)
-            self.nodes.append(name)
-            
-    def add_action_nodes(self, name_action_dict):
-        for name in name_action_dict:
-            self.add_action_node(name, name_action_dict[name])
-            
-    def add_utility_node(self, name):
-        if name not in self.graph:
-            self.graph[name] = BinaryUtilityNode(name)
-            self.nodes.append(name)
-            
-    def add_utility_nodes(self, names):
-        for name in names:
-            self.add_action_node(name)
+        super().__init__()
             
     def draw(self):
         # Create nx graph
         G = nx.DiGraph(directed=True)
-        G.add_edges_from(self.edges)
+        G.add_edges_from(self.get_edges())
         pos = nx.nx_pydot.graphviz_layout(G, prog="dot")
         
         # Draw regular nodes
-        nodes = self.get_nodes()
+        nodes = self.get_nodes_by_type(StaticNode)
         nx.draw_networkx_nodes(G, pos, nodelist=nodes, node_color="orange", node_size=3000, node_shape="o")
         
         # Draw action nodes
-        action_nodes = self.get_action_nodes()
+        action_nodes = self.get_nodes_by_type(StaticActionNode)
         nx.draw_networkx_nodes(G, pos, nodelist=action_nodes, node_color="blue", node_size=3000, node_shape="s")
         
         # Draw action nodes
-        utility_nodes = self.get_utility_nodes()
+        utility_nodes = self.get_nodes_by_type(StaticUtilityNode)
         nx.draw_networkx_nodes(G, pos, nodelist=utility_nodes, node_color="green", node_size=3000, node_shape="d")
         
         # Draw network edges
-        nx.draw_networkx_edges(G, pos)
+        nx.draw_networkx_edges(G, pos, node_size=3000)
         
         # Draw node labels
-        labels = {n: n for n in self.nodes}
+        labels = {n: n for n in self.node_map}
         nx.draw_networkx_labels(G, pos, labels)
         plt.show()
         
     @staticmethod
-    def bitGen(n):
+    def bitGen(n: int):
         return [''.join(i) for i in itertools.product('01', repeat=n)]
-        
-    def get_action_nodes(self):
-        r = [n for n in self.nodes if type(self.graph[n]) is BinaryActionNode]
-        return r
     
-    def get_utility_nodes(self):
-        r = [n for n in self.nodes if type(self.graph[n]) is BinaryUtilityNode]
-        return r
-    
-    def get_nodes(self):
-        r = [n for n in self.nodes if type(self.graph[n]) is BinaryNode]
-        return r
-    
-    def query_decision(self, query, evidence, n_samples=1000, quantum=False):
+    def query_decision(self, query: list[str], evidence: dict[str, int], n_samples: int = 1000, quantum: bool = False) -> dict[str, int]:
         # Get all action nodes
-        action_nodes = self.get_action_nodes()
+        action_nodes = self.get_nodes_by_type(StaticActionNode)
         
         # Get all actions for all the action nodes
         action_space = {}
         for a in action_nodes:
-            action_space[a] = self.graph[a].actions
+            action_space[a] = self.node_map[a].actions
         
         # Create a list of all possible actions to be taken
         keys, values = zip(*action_space.items())
@@ -106,7 +65,7 @@ class DecisionNetwork(BayesianNetwork):
             
             # Set the actions of the action nodes to the current set of actions
             for action_node in action_nodes:
-                self.graph[action_node].add_value(actions[action_node])
+                self.node_map[action_node].add_value(actions[action_node])
                 
             # Perform query
             if quantum:

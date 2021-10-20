@@ -12,20 +12,12 @@ class QuantumBayesianNetwork:
     def __init__(self, bn):
         
         # Dictionary mapping qbit numbers to a list of qbit parents (numbers also)
-        key = lambda name: self.node_depth(bn, bn.graph[name])
-        names = sorted(bn.nodes, key=key)
-        self.parent_dict = {name: bn.graph[name].parents for name in names}
+        self.parent_dict = {name: bn.get_parents(name) for name in bn.node_queue}
         
         # Dictionary where keys are qubit numbers and values are lists of tuples
         # First element of each tuple an the angle of rotation
         # Second element is a dictionary that represents the state of the control qubits (1 if set, 0 if not)
         self.ry_angles = self.get_ry_angles(bn)
-        
-    def node_depth(self, bn, node):
-        r = 0
-        if len(node.parents) != 0:
-            r = 1 + max([self.node_depth(bn, bn.graph[p]) for p in node.parents])
-        return r
         
     def get_ry_angles(self, bn):
         # Create result dictionary
@@ -35,11 +27,12 @@ class QuantumBayesianNetwork:
         angle = lambda p1, p0: np.pi if (p0 == 0) else 2 * np.arctan(np.sqrt(p1 / p0))
         
         # Iterate nodes of Bayesian Network
-        for name in bn.nodes:
+        nodes = [n for n in bn.node_map]
+        for name in nodes:
             
             # Get node, parents and CPT
-            node = bn.graph[name]
-            parents = node.parents
+            node = bn.node_map[name]
+            parents = bn.get_parents(name)
             pt = node.pt
             
             # Find all p1 and p0 probabilities 
