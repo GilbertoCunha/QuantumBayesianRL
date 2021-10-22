@@ -85,62 +85,69 @@ class QuantumBayesianNetwork:
                     circuit.ry(theta, qr[i])
             
         return circuit
-
+    
     @staticmethod
-    def grover_oracle(qr, good_states):
-        # good_states = ["0010", "1011", "1100"]
-
+    def grover_oracle(qr, evidence, names_to_qbits):
         # Create quantum circuit
         circuit = QuantumCircuit(qr)
-
-        # Iterate each good state
-        for state in good_states:
-
-            # Flip unset qubits in good state
-            for i, value in enumerate(state):
-                if not int(value):
-                    circuit.x(i)
-
-            # Apply phase flip
-            circuit.mcp(np.pi, qr[:-1], qr[-1])
-
-            # Reflip unset qubits in good state
-            for i, value in enumerate(state):
-                if not int(value):
-                    circuit.x(i)
-
+        
+        # Iterate evidence values
+        for name, value in evidence.items():
+            # Get qubit number
+            i = names_to_qbits[name]
+            
+            # Apply bit flip if not set
+            if not value:
+                circuit.x(qr[i])
+                
+        # Apply phase flip to evidence qubits
+        start = len(qr) - len(evidence)
+        circuit.mcp(np.pi, qr[start:-1], qr[-1])
+        
+        # Iterate evidence values
+        for name, value in evidence.items():
+            # Get qubit number
+            i = names_to_qbits[name]
+            
+            # Apply bit flip if not set
+            if not value:
+                circuit.x(qr[i])
+                
         return circuit
 
-    def grover_diffuser(self, qr, names_to_qbits):
+    def grover_diffuser(self, qr, names_to_qbits, barriers):
         # Create quantum circuit
         circuit = QuantumCircuit(qr)
 
         # Apply hermitian conjugate state preparation circuit
         circuit.compose(self.state_preparation(qr, names_to_qbits).inverse(), inplace=True)
-        circuit.barrier()
+        if barriers:
+            circuit.barrier()
 
         # Flip about the zero state
         circuit.x(qr)
         circuit.mcp(np.pi, qr[:-1], qr[-1])
         circuit.x(qr)
-        circuit.barrier()
+        if barriers:
+            circuit.barrier()
         
         # Apply state preparation circuit
         circuit.compose(self.state_preparation(qr, names_to_qbits), inplace=True)
         return circuit
 
-    def grover_operator(self, qr, good_states, names_to_qbits):
+    def grover_operator(self, qr, evidence, names_to_qbits, barriers):
         circuit = QuantumCircuit(qr)
-        circuit.compose(self.grover_oracle(qr, good_states), inplace=True)
-        circuit.barrier()
-        circuit.compose(self.grover_diffuser(qr, names_to_qbits), inplace=True)
+        circuit.compose(self.grover_oracle(qr, evidence, names_to_qbits), inplace=True)
+        if barriers:
+            circuit.barrier()
+        circuit.compose(self.grover_diffuser(qr, names_to_qbits, barriers), inplace=True)
         return circuit
     
     @staticmethod
     def bitGen(n):
         return [''.join(i) for i in itertools.product('01', repeat=n)]
 
-    def query(self, query, evidence={}, n_samples=1000):
+    def query(self, query, evidence={}, n_samples=1000, barriers=False):
         
         # Number of shots of the circuit
         shots = n_samples if (len(evidence) == 0) else 1
@@ -155,7 +162,6 @@ class QuantumBayesianNetwork:
         # Define the good states
         other_states = self.bitGen(len(other_names))
         evidence_state = ''.join([str(evidence[k]) for k in evidence])
-        good_states = [o + evidence_state for o in other_states]
 
         # Define quantum and classical registers
         qr = QuantumRegister(len(names_to_qbits))
@@ -187,13 +193,15 @@ class QuantumBayesianNetwork:
 
                 # Apply state preparation
                 circuit.compose(self.state_preparation(qr, names_to_qbits), inplace=True)
-                circuit.barrier()
+                if barriers:
+                    circuit.barrier()
 
                 # Apply grover operator multiple times
                 if len(evidence) != 0:
                     for _ in range(grover_iter):
-                        circuit.compose(self.grover_operator(qr, good_states, names_to_qbits), inplace=True)
-                    circuit.barrier()
+                        circuit.compose(self.grover_operator(qr, evidence, names_to_qbits, barriers), inplace=True)
+                    if barriers:
+                        circuit.barrier()
 
                 # Apply measurements
                 circuit.measure(qr, cr)
