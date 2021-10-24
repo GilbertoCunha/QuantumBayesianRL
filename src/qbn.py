@@ -1,4 +1,4 @@
-from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit, transpile
+from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit
 from qiskit.providers.aer import QasmSimulator
 from tqdm import tqdm
 import pandas as pd
@@ -102,7 +102,10 @@ class QuantumBayesianNetwork:
                 
         # Apply phase flip to evidence qubits
         start = len(qr) - len(evidence)
-        circuit.mcp(np.pi, qr[start:-1], qr[-1])
+        if len(evidence) == 1: 
+            circuit.z(qr[start])
+        else:
+            circuit.mcp(np.pi, qr[start:-1], qr[-1])
         
         # Iterate evidence values
         for name, value in evidence.items():

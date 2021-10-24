@@ -1,6 +1,6 @@
 from __future__ import annotations
-from nodes import StateNode, EvidenceNode, ActionNode, UtilityNode
-from bn import BayesianNetwork
+from src.nodes import StateNode, EvidenceNode, ActionNode, UtilityNode
+from src.bn import BayesianNetwork
 from typing import Type, Union
 import networkx as nx
 import pandas as pd

@@ -1,8 +1,8 @@
 from __future__ import annotations
-from nodes import StaticNode, StaticActionNode, StaticUtilityNode
-from qbn import QuantumBayesianNetwork
+from src.nodes import StaticNode, StaticActionNode, StaticUtilityNode
+from src.qbn import QuantumBayesianNetwork
+from src.bn import BayesianNetwork
 import matplotlib.pyplot as plt
-from bn import BayesianNetwork
 from typing import Type, Union
 import networkx as nx
 import pandas as pd
