@@ -19,6 +19,26 @@ class DynamicDecisionNetwork(BayesianNetwork):
         self.knowns: list[Id, int] = {}
         self.time: int = 0
 
+    def get_ddn_time_slice(self, time) -> DynamicDecisionNetwork:
+        r = DynamicDecisionNetwork()
+
+        # Nodes to add
+        node_ids = self.get_nodes_by_type_and_time(StateNode, time)
+        node_ids += self.get_nodes_by_type_and_time(EvidenceNode, time)
+        node_ids += self.get_nodes_by_type_and_time(UtilityNode, time)
+        node_ids += self.get_nodes_by_type_and_time(ActionNode, time-1)
+        nodes = [self.node_map[node] for node in node_ids]
+        r.add_nodes(nodes)
+
+        # Add edges only of selected time-step
+        edges = {k: [(n, t) for (n, t) in v if t == time] for k, v in self.graph.items() if k in node_ids}
+        edges = [(k, v) for k in edges for v in edges[k]]
+        r.add_edges(edges)
+
+        # Initilize the ddn
+        r.gen_node_queue()
+        return r
+
     def get_time(self) -> int:
         return self.time
 
@@ -30,23 +50,19 @@ class DynamicDecisionNetwork(BayesianNetwork):
 
         # Draw state nodes
         state_nodes = self.get_nodes_by_type(StateNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=state_nodes,
-                               node_color="gray", node_size=3000, node_shape="o")
+        nx.draw_networkx_nodes(G, pos, nodelist=state_nodes, node_color="gray", node_size=3000, node_shape="o")
 
         # Draw state nodes
         evidence_nodes = self.get_nodes_by_type(EvidenceNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=evidence_nodes,
-                               node_color="orange", node_size=3000, node_shape="o")
+        nx.draw_networkx_nodes(G, pos, nodelist=evidence_nodes, node_color="orange", node_size=3000, node_shape="o")
 
         # Draw action nodes
         action_nodes = self.get_nodes_by_type(ActionNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=action_nodes,
-                               node_color="tab:blue", node_size=3000, node_shape="s")
+        nx.draw_networkx_nodes(G, pos, nodelist=action_nodes, node_color="tab:blue", node_size=3000, node_shape="s")
 
         # Draw action nodes
         utility_nodes = self.get_nodes_by_type(UtilityNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=utility_nodes,
-                               node_color="green", node_size=3000, node_shape="d")
+        nx.draw_networkx_nodes(G, pos, nodelist=utility_nodes, node_color="green", node_size=3000, node_shape="d")
 
         # Draw network edges
         nx.draw_networkx_edges(G, pos, node_size=3000)
@@ -105,12 +121,10 @@ class DynamicDecisionNetwork(BayesianNetwork):
         self.gen_node_queue()
 
         # Get all evidence and reward nodes ids
-        init_nodes = self.get_nodes_by_type(
-            EvidenceNode) + self.get_nodes_by_type(UtilityNode)
+        init_nodes = self.get_nodes_by_type(EvidenceNode) + self.get_nodes_by_type(UtilityNode)
 
         # Get a single sample from the initial network
-        sample = self.query(query=init_nodes, evidence={
-                            ("Action", 0): 1}, n_samples=1)  # FIX EVIDENCE
+        sample = self.query(query=init_nodes, evidence={("Action", 0): 1}, n_samples=1)  # FIX EVIDENCE
         sample = {col: int(sample[col]) for col in sample if col != "Prob"}
         self.knowns = sample
 
@@ -132,8 +146,7 @@ class DynamicDecisionNetwork(BayesianNetwork):
             if type(node) in [EvidenceNode, UtilityNode]:
                 pt = node.pt
                 columns = list(pt.columns)
-                new_columns = {c: (c[0], c[1]-1)
-                               for c in columns if c != "Prob"}
+                new_columns = {c: (c[0], c[1]-1) for c in columns if c != "Prob"}
                 new_columns["Prob"] = "Prob"
                 new_node.pt = pt.rename(columns=new_columns)
 
@@ -186,4 +199,3 @@ class DynamicDecisionNetwork(BayesianNetwork):
 
         # Get the new node queue
         self.gen_node_queue()
-

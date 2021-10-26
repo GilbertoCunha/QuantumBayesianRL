@@ -6,6 +6,7 @@ import pandas as pd
 Id = (str, int)
 Node = Union["TreeEvidenceNode", "TreeBeliefNode"]
 
+
 class TreeEvidenceNode:
     depth: int
     evidence: dict[Id, int]
@@ -52,6 +53,9 @@ class TreeBeliefNode:
 
     def get_action(self) -> dict[Id, int]:
         return self.action
+
+    def get_belief(self) -> pd.DataFrame:
+        return self.belief
 
     def add_child(self, node: Node):
         self.children.append(node)
