@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.nodes import StaticNode
+from src.networks.nodes import StaticNode
 import networkx as nx
 import pandas as pd
 import numpy as np

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from src.nodes import StaticNode, StaticActionNode, StaticUtilityNode
-from src.qbn import QuantumBayesianNetwork
-from src.bn import BayesianNetwork
+from src.networks.nodes import StaticNode, StaticActionNode, StaticUtilityNode
+from src.networks.qbn import QuantumBayesianNetwork
+from src.networks.bn import BayesianNetwork
 import matplotlib.pyplot as plt
 from typing import Type, Union
 import networkx as nx
@@ -53,7 +53,8 @@ class DecisionNetwork(BayesianNetwork):
         # Get all actions for all the action nodes
         action_space = {}
         for a in action_nodes:
-            action_space[a] = self.node_map[a].actions
+            start, stop = self.node_map[a].get_value_range()
+            action_space[a] = list(range(start, stop+1))
         
         # Create a list of all possible actions to be taken
         keys, values = zip(*action_space.items())

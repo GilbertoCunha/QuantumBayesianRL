@@ -1,6 +1,6 @@
 from __future__ import annotations
-from src.nodes import StateNode, EvidenceNode, ActionNode, UtilityNode
-from src.bn import BayesianNetwork
+from src.networks.nodes import StateNode, EvidenceNode, ActionNode, UtilityNode
+from src.networks.bn import BayesianNetwork
 from typing import Type, Union
 import networkx as nx
 import pandas as pd
@@ -119,12 +119,11 @@ class DynamicDecisionNetwork(BayesianNetwork):
         for nid, node in self.node_map.items():
             # Add action nodes
             if type(node) is ActionNode:
-                new_node = ActionNode(
-                    node.get_name(), node.get_time()-1, node.get_actions())
+                new_node = ActionNode(node.get_name(), node.get_time()-1, node.get_value_range())
             elif type(node) is EvidenceNode:
-                new_node = EvidenceNode(node.get_name(), node.get_time()-1)
+                new_node = EvidenceNode(node.get_name(), node.get_time()-1, node.get_value_range())
             elif type(node) is UtilityNode:
-                new_node = UtilityNode(node.get_name(), node.get_time()-1)
+                new_node = UtilityNode(node.get_name(), node.get_time()-1, node.get_value_range())
 
             # Decrease time in new PTs
             if type(node) in [EvidenceNode, UtilityNode]:

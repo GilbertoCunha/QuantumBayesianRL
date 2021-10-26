@@ -11,14 +11,18 @@ class StaticNode:
     A class for a Bayesian Network node of a boolean random variable
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, value_range: (int, int)):
         self.name: str = name
+        self.value_range: (int, int) = value_range
 
     def get_id(self) -> str:
         return self.name
 
     def get_pt(self) -> pt.DataFrame:
         return self.pt
+
+    def get_value_range(self) -> (int, int):
+        return self.value_range
 
     def add_pt(self, pt: dict[str, list[int]]):
         """
@@ -38,26 +42,33 @@ class StaticNode:
         df = self.pt
         for name in sample:
             df = df.loc[df[name] == sample[name]]
-        df = df.loc[df[self.get_id()] == 0]
+        # df = df.loc[df[self.get_id()] == 0]
 
         # Generate random number
+        # number = np.random.uniform()
+        # r = int(np.random.uniform() > df["Prob"])
+
+        # Get random value from value range
+        cum_prob = 0
         number = np.random.uniform()
-        r = int(np.random.uniform() > df["Prob"])
+        for r in range(len(df)):
+            cum_prob += df.iloc[r]["Prob"]
+            if number < cum_prob:
+                break
 
         return r
 
 
 class StaticActionNode(StaticNode):
 
-    def __init__(self, name: str, actions: list[int]):
-        super().__init__(name)
-        self.actions = actions
-
-    def get_action(self) -> list[int]:
-        return self.actions
+    def __init__(self, name: str, value_range: (int, int)):
+        super().__init__(name, value_range)
 
     def add_value(self, value: int):
-        self.pt = pd.DataFrame({self.name: [value, 1-value], "Prob": [1, 0]})
+        start, stop = self.get_value_range()
+        values = list(range(start, stop+1))
+        probs = [int(value==i) for i in range(len(values))]
+        self.pt = pd.DataFrame({self.name: values, "Prob": probs})
 
 
 class StaticUtilityNode(StaticNode):
@@ -65,9 +76,10 @@ class StaticUtilityNode(StaticNode):
 
 
 class StateNode(StaticNode):
-    def __init__(self, name: str, time: int):
+    def __init__(self, name: str, time: int, value_range: (int, int)):
         self.name: str = name
         self.time: int = time
+        self.value_range: (int, int) = value_range
 
     def get_id(self) -> Id:
         return (self.name, self.time)
@@ -84,16 +96,14 @@ class EvidenceNode(StateNode):
 
 
 class ActionNode(StateNode):
-    def __init__(self, name: str, time: int, actions: list[int]):
-        super().__init__(name, time)
-        self.actions = actions
-
-    def get_actions(self) -> list[int]:
-        return self.actions
+    def __init__(self, name: str, time: int, value_range: (int, int)):
+        super().__init__(name, time, value_range)
 
     def add_value(self, value: int):
-        self.pt = pd.DataFrame(
-            {self.get_id(): [value, 1-value], "Prob": [1, 0]})
+        start, stop = self.get_value_range()
+        values = list(range(start, stop+1))
+        probs = [int(value==i) for i in range(len(values))]
+        self.pt = pd.DataFrame({self.get_id(): values, "Prob": probs})
 
 
 class UtilityNode(StateNode):

@@ -1,6 +1,6 @@
 from numpy.testing import assert_almost_equal
-from src.bn import BayesianNetwork
-from src.nodes import StaticNode
+from src.networks.bn import BayesianNetwork
+from src.networks.nodes import StaticNode
 import pandas as pd
 import unittest
 
