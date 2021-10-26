@@ -111,7 +111,7 @@ class DynamicDecisionNetwork(BayesianNetwork):
         action_nodes = self.get_nodes_by_type(ActionNode)
         for node in action_nodes:
             if node not in evidence:
-                return "THIS CANT HAPPEN"
+                return f"{node} Missing. THIS CANT HAPPEN!"
             self.node_map[node].add_value(evidence[node])
 
         return super().query(query, evidence, n_samples)
