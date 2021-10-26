@@ -19,6 +19,9 @@ class DynamicDecisionNetwork(BayesianNetwork):
         self.knowns: list[Id, int] = {}
         self.time: int = 0
 
+    def get_time(self) -> int:
+        return self.time
+
     def draw(self):
         # Create nx graph
         G = nx.DiGraph(directed=True)

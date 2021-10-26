@@ -53,8 +53,7 @@ class DecisionNetwork(BayesianNetwork):
         # Get all actions for all the action nodes
         action_space = {}
         for a in action_nodes:
-            start, stop = self.node_map[a].get_value_range()
-            action_space[a] = list(range(start, stop+1))
+            action_space[a] = self.node_map[a].get_value_space() 
         
         # Create a list of all possible actions to be taken
         keys, values = zip(*action_space.items())

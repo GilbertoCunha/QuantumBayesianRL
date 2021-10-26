@@ -24,6 +24,10 @@ class StaticNode:
     def get_value_range(self) -> (int, int):
         return self.value_range
 
+    def get_value_space(self) -> list[int]:
+        start, stop = self.get_value_range()
+        return list(range(start, stop+1))
+
     def add_pt(self, pt: dict[str, list[int]]):
         """
         Adds a probability table to this node
@@ -65,8 +69,7 @@ class StaticActionNode(StaticNode):
         super().__init__(name, value_range)
 
     def add_value(self, value: int):
-        start, stop = self.get_value_range()
-        values = list(range(start, stop+1))
+        values = self.get_value_space() 
         probs = [int(value==i) for i in range(len(values))]
         self.pt = pd.DataFrame({self.name: values, "Prob": probs})
 
@@ -100,8 +103,7 @@ class ActionNode(StateNode):
         super().__init__(name, time, value_range)
 
     def add_value(self, value: int):
-        start, stop = self.get_value_range()
-        values = list(range(start, stop+1))
+        values = self.get_value_space() 
         probs = [int(value==i) for i in range(len(values))]
         self.pt = pd.DataFrame({self.get_id(): values, "Prob": probs})
 
