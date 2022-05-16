@@ -175,7 +175,7 @@ class QuantumBayesianNetwork:
 
         # Get the required number of samples
         iterations = n_samples if (len(evidence) != 0) else 1
-        for _ in tqdm(range(iterations), total=iterations, desc="Sampling", leave=False):
+        for _ in tqdm(range(iterations), total=iterations, desc="Sampling", leave=True):
         
             # Constants for number of grover iterations
             c = 1.4

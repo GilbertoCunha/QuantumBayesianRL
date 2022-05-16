@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.networks.nodes import StaticNode
+from src.networks.nodes import Node
 import networkx as nx
 import pandas as pd
 import numpy as np
@@ -14,8 +14,8 @@ class BayesianNetwork:
     """
 
     def __init__(self):
-        self.node_map: dict[str, StaticNode] = {}
-        self.graph: dict[str, list[str]] = {}
+        self.node_map: dict[str,Node] = {}
+        self.graph: dict[str,list[str]] = {}
 
     def draw(self):
         G = nx.DiGraph(directed=True)
@@ -29,7 +29,7 @@ class BayesianNetwork:
         }
         nx.draw_networkx(G, arrows=True, **options)
 
-    def add_nodes(self, nodes: list[StaticNode]):
+    def add_nodes(self, nodes: list[Node]):
         for node in nodes:
             if node.get_id() not in self.node_map:
                 self.node_map[node.get_id()] = node

@@ -1,15 +1,16 @@
 from __future__ import annotations
-from src.networks.nodes import StaticNode, StaticActionNode, StaticUtilityNode
+from src.networks.nodes import StateNode, ActionNode, UtilityNode, EvidenceNode
 from src.networks.qbn import QuantumBayesianNetwork
 from src.networks.bn import BayesianNetwork
 import matplotlib.pyplot as plt
 from typing import Type, Union
+from tqdm import tqdm
 import networkx as nx
 import pandas as pd
 import itertools
 
 # Defining types
-Node = Union[StaticNode, StaticActionNode, StaticUtilityNode]
+Node = Union[StateNode, ActionNode, UtilityNode, EvidenceNode]
 
 class DecisionNetwork(BayesianNetwork):
     
@@ -22,17 +23,21 @@ class DecisionNetwork(BayesianNetwork):
         G.add_edges_from(self.get_edges())
         pos = nx.nx_pydot.graphviz_layout(G, prog="dot")
         
-        # Draw regular nodes
-        nodes = self.get_nodes_by_type(StaticNode)
+        # Draw state nodes
+        nodes = self.get_nodes_by_type(StateNode)
         nx.draw_networkx_nodes(G, pos, nodelist=nodes, node_color="orange", node_size=3000, node_shape="o")
         
         # Draw action nodes
-        action_nodes = self.get_nodes_by_type(StaticActionNode)
+        action_nodes = self.get_nodes_by_type(ActionNode)
         nx.draw_networkx_nodes(G, pos, nodelist=action_nodes, node_color="blue", node_size=3000, node_shape="s")
         
-        # Draw action nodes
-        utility_nodes = self.get_nodes_by_type(StaticUtilityNode)
+        # Draw utility nodes
+        utility_nodes = self.get_nodes_by_type(UtilityNode)
         nx.draw_networkx_nodes(G, pos, nodelist=utility_nodes, node_color="green", node_size=3000, node_shape="d")
+        
+        # Draw evidence nodes
+        utility_nodes = self.get_nodes_by_type(EvidenceNode)
+        nx.draw_networkx_nodes(G, pos, nodelist=utility_nodes, node_color="red", node_size=3000, node_shape="o")
         
         # Draw network edges
         nx.draw_networkx_edges(G, pos, node_size=3000)
@@ -48,7 +53,7 @@ class DecisionNetwork(BayesianNetwork):
     
     def query_decision(self, query: list[str], evidence: dict[str, int], n_samples: int = 1000, quantum: bool = False) -> dict[str, int]:
         # Get all action nodes
-        action_nodes = self.get_nodes_by_type(StaticActionNode)
+        action_nodes = self.get_nodes_by_type(ActionNode)
         
         # Get all actions for all the action nodes
         action_space = {}
@@ -61,11 +66,11 @@ class DecisionNetwork(BayesianNetwork):
         
         # Iterate each set of actions in action space
         results = []
-        for actions in action_space:
+        for actions in tqdm(action_space, total=len(action_space), desc="Iterating actions", leave=True):
             
             # Set the actions of the action nodes to the current set of actions
             for action_node in action_nodes:
-                self.node_map[action_node].add_value(actions[action_node])
+                self.node_map[action_node].set_action(actions[action_node])
                 
             # Perform query
             if quantum:
