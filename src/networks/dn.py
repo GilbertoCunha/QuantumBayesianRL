@@ -3,7 +3,7 @@ from src.networks.nodes import StateNode, ActionNode, UtilityNode, EvidenceNode
 from src.networks.qbn import QuantumBayesianNetwork
 from src.networks.bn import BayesianNetwork
 import matplotlib.pyplot as plt
-from typing import Type, Union
+from typing import Union
 from tqdm import tqdm
 import networkx as nx
 import pandas as pd

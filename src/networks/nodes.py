@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Union
+from typing import Union
 import pandas as pd
 import numpy as np
 
