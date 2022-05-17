@@ -54,6 +54,9 @@ class BayesianNetwork:
 
     def initialize(self):
         self.gen_node_queue()
+        
+    def get_node(self, nid: str):
+        return self.node_map[nid]
 
     def get_nodes(self) -> list[str]:
         return self.node_map.keys()

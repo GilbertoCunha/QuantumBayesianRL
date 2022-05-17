@@ -2,14 +2,15 @@ from __future__ import annotations
 from src.networks.nodes import StateNode, ActionNode, UtilityNode, EvidenceNode
 from src.networks.qbn import QuantumBayesianNetwork
 from src.networks.bn import BayesianNetwork
+from typing import Union, Callable
 import matplotlib.pyplot as plt
-from typing import Union
 from tqdm import tqdm
 import networkx as nx
 import pandas as pd
 import itertools
 
 # Defining types
+Id = Union[str, tuple]
 Node = Union[StateNode, ActionNode, UtilityNode, EvidenceNode]
 
 class DecisionNetwork(BayesianNetwork):
@@ -46,6 +47,9 @@ class DecisionNetwork(BayesianNetwork):
         labels = {n: n for n in self.node_map}
         nx.draw_networkx_labels(G, pos, labels)
         plt.show()
+        
+    def get_nodes_by_key(self, key: Callable[[Id, Node], bool]):
+        return [n for n in self.node_map.keys() if key(n, self.node_map[n])]
         
     @staticmethod
     def bitGen(n: int):
