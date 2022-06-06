@@ -99,7 +99,7 @@ class BayesianNetwork:
     def get_nodes_by_type(self, node_type: Type(Node)) -> list[str]:
         return [k for k, v in self.node_map.items() if type(v) is node_type]
 
-    def query(self, query: list[str], evidence: dict[str, int] = {}, n_samples: int = 1000) -> pd.DataFrame:
+    def query(self, query: list[str], evidence: dict[str, int] = {}, n_samples: int = 100) -> pd.DataFrame:
         """
         Applies the direct sampling algorithm
 

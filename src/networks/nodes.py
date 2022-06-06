@@ -12,9 +12,9 @@ class Node:
     A class for a Bayesian Network node of a boolean random variable
     """
 
-    def __init__(self, node_id:Union[str,Id], value_range:(int,int), pt:pd.DataFrame = None):
+    def __init__(self, node_id:Union[str,Id], value_space:[float], pt:pd.DataFrame = None):
         self.id: Union[str,Id] = node_id
-        self.value_range: (int, int) = value_range
+        self.value_space: [float] = value_space
         self.pt = pt
 
     def get_id(self) -> str:
@@ -23,12 +23,8 @@ class Node:
     def get_pt(self) -> pt.DataFrame:
         return self.pt
 
-    def get_value_range(self) -> (int,int):
-        return self.value_range
-
-    def get_value_space(self) -> list[int]:
-        start, stop = self.get_value_range()
-        return list(range(start, stop+1))
+    def get_value_space(self) -> list[float]:
+        return self.value_space
 
     def add_pt(self, pt:dict[str,list[int]]):
         """
@@ -50,11 +46,14 @@ class Node:
             df = df.loc[df[name] == sample[name]]
 
         # Get random value from value range
-        cum_prob = 0
+        r, cum_prob = 0, 0
         number = np.random.uniform()
-        for r in range(len(df)):
-            cum_prob += df.iloc[r]["Prob"]
+        for i in range(len(df)):
+            cum_prob += df.iloc[i]["Prob"]
             if number < cum_prob:
+                #print(self.get_id())
+                #print(df)
+                r = df.iloc[i][self.get_id()]
                 break
 
         return r
@@ -62,8 +61,8 @@ class Node:
 
 class ActionNode(Node):
 
-    def __init__(self, name: str, value_range: (int, int)):
-        super().__init__(name, value_range)
+    def __init__(self, name: str, value_space: [int]):
+        super().__init__(name, value_space)
 
     def set_action(self, value: int):
         values = self.get_value_space()
