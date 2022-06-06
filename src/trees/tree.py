@@ -55,8 +55,9 @@ class Tree:
         r = TreeObservationNode(action, depth)
         
         # Create children for each observation
-        for observation in self.get_observation_space():
-            r.add_children(self.build_tree(observation, depth))
+        if depth < self.get_horizon():
+            for observation in self.get_observation_space():
+                r.add_children(self.build_tree(observation, depth+1))
             
         return r
         
@@ -64,10 +65,9 @@ class Tree:
         # Create observation node
         r = TreeBeliefNode(observation, depth)
         
-        # Add children if depth allows
-        if depth < self.get_horizon():
-            for action in self.get_action_space():
-                r.add_children(self.build_tree_aux(action, depth+1))
+        # Add children
+        for action in self.get_action_space():
+            r.add_children(self.build_tree_aux(action, depth))
                 
         return r
     
@@ -92,9 +92,6 @@ class Tree:
         reward_df = ddn.query(query=[rnid])
         r = (reward_df[rnid] * reward_df["Prob"]).sum()"""
         
-        # Initialize value
-        r = 0
-        
         # Calculate observation distribution
         snid = ddn.get_nodes_by_key(lambda nid, n: (isinstance(n, StateNode) and ddn.is_root(nid)))[0]
         rnid = ddn.get_nodes_by_key(lambda nid, n: isinstance(n, UtilityNode))[0]
@@ -103,30 +100,30 @@ class Tree:
         ddn.node_map[anid].set_action(obs_node.get_value())
         obs_df = ddn.query(query=[onid])
         
+        # Calculate imediate reward
+        ddn.node_map[snid].add_pt(b)
+        reward_df = ddn.query(query=[rnid])
+        r = (reward_df[rnid] * reward_df["Prob"]).sum()
+        belief_list = list(b["Prob"].to_numpy())
+        # print(f"   Belief: {belief_list} | Action: {obs_node.get_value()} | Reward: {r}")
+        
         # Iterate every children belief node
         for b_node in obs_node.get_children():
             # Calculate new belief
             b_ = self.belief_update(ddn, b, obs_node.get_value(), b_node.get_value())
             
-            # Calculate reward for new belief
-            ddn.node_map[snid].add_pt(b_)
-            reward_df = ddn.query(query=[rnid])
-            r_aux = (reward_df[rnid] * reward_df["Prob"]).sum()
-            
             # Recursive call for every children action node
             # To get greedy value
-            V = float("-inf") if (b_node.get_depth() < self.get_horizon()) else 0
+            V = float("-inf") if (b_node.get_depth() <= self.get_horizon()) else 0
             for o_node in b_node.get_children():
-                q = q_value(ddn, o_node, b_)
+                q = self.q_value(ddn, o_node, b_)
                 if q > V:
                     V = q
                     
-            # Update next value
-            r_aux += self.get_discount() * V
-                    
             # Increment value for observation node
-            r += self.get_discount() * obs_df[obs_df[onid] == b_node.get_value()]["Prob"].iloc[0] * r_aux
+            r += self.get_discount() * obs_df[obs_df[onid] == b_node.get_value()]["Prob"].iloc[0] * V
            
+        # Revert belief-state to original df
         ddn.node_map[snid].add_pt(b)
         
         return r
@@ -141,15 +138,8 @@ class Tree:
         r = None
         value = float("-inf")
         for obs_node in self.node.get_children():
-            # Calculate imediate reward
-            rnid = ddn.get_nodes_by_key(lambda nid, n: isinstance(n, UtilityNode))[0]
-            anid = ddn.get_nodes_by_key(lambda nid, n: isinstance(n, ActionNode))[0]
-            ddn.node_map[anid].set_action(obs_node.get_value())
-            reward_df = ddn.query(query=[rnid])
-            q = (reward_df[rnid] * reward_df["Prob"]).sum()
-            
-            # Increment the value of future time-steps
-            q += self.q_value(ddn, obs_node, b)
+            # Get the value of the action
+            q = self.q_value(ddn, obs_node, b)
             if verbose:
                 print(f"   Action: {obs_node.get_value()} | Value: {q}")
             if q > value:
