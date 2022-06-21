@@ -4,8 +4,7 @@ import pandas as pd
 import numpy as np
 
 # Defining types
-TId = (str, int)
-Id = Union[str, TId]
+Id = Union[str, (str, int)]
 
 # FIXME: This code assumes the PT's column name for the probability column is "Prob".
 
@@ -15,7 +14,7 @@ class Node:
     A class for a Bayesian Network node of a boolean random variable
     """
 
-    def __init__(self, node_id:Id, value_space:list[float], pt:pd.DataFrame = None):
+    def __init__(self, node_id: Id, value_space: list[float], pt: pd.DataFrame = None):
         self.id: Id = node_id
         self.value_space: list[float] = value_space
         self.pt: pd.DataFrame = pt
@@ -30,10 +29,10 @@ class Node:
     def get_value_space(self) -> list[float]:
         return self.value_space
 
-    def add_pt(self, pt:dict[Id,list[int]]):
+    def add_pt(self, pt: dict[Id, list[int]]):
         self.pt = pd.DataFrame(pt)
         
-    def backup_replace_pt(self, pt:dict[Id,list[int]]):
+    def backup_replace_pt(self, pt: dict[Id, list[int]]):
         if self.backup_pt is None:
             self.backup_pt = self.pt
             self.pt = pt
@@ -42,7 +41,7 @@ class Node:
         self.pt = self.backup_pt
         self.backup_pt = None
 
-    def get_sample(self, sample:dict[Id,int]) -> int:
+    def get_sample(self, sample: dict[Id, int]) -> int:
         """
         Samples this node via the direct sampling algorithm
         given previous acquired samples (of parent nodes).
@@ -74,10 +73,10 @@ class Node:
 
 class ActionNode(Node):
 
-    def __init__(self, node_id:Id, value_space:list[int], pt:pd.DataFrame = None):
+    def __init__(self, node_id: Id, value_space: list[int], pt: pd.DataFrame = None):
         super().__init__(node_id, value_space, pt)
 
-    def set_action(self, value:int):
+    def set_action(self, value: int):
         values = self.get_value_space()
         probs = [int(value==i) for i in range(len(values))]
         self.pt = pd.DataFrame({self.get_id(): values, "Prob": probs})

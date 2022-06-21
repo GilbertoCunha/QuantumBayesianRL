@@ -1,11 +1,12 @@
 from __future__ import annotations
 from src.networks.nodes import Node
+from typing import Union
 import networkx as nx
 import pandas as pd
-import numpy as np
 
 # Defining types
-Edge = (str, str)
+Id = Union[str, (str, int)]
+Edge = tuple[Id, Id]
 
 
 class BayesianNetwork:
@@ -15,13 +16,13 @@ class BayesianNetwork:
 
     def __init__(self):
         # The node map maps the node's ids to the node objects themselves
-        self.node_map: dict[str,Node] = {}
+        self.node_map: dict[Id, Node] = {}
         
         # The graph maps node ids to list of children node ids
-        self.graph: dict[str,list[str]] = {}
+        self.graph: dict[Id, list[Id]] = {}
         
         # The node queue lists the topological ordering of the nodes, for inference traversal
-        self.node_queue = None
+        self.node_queue: list[Id] = None
 
     def draw(self):
         # Create a networkx directed graph and add edges to it
@@ -50,15 +51,15 @@ class BayesianNetwork:
         # Iterate every edge to be added
         for s, d in edges:
             # Add source node to the bn if it does not already exist
-            if s not in self.graph:
-                self.add_nodes([s])
+            # if s not in self.graph:
+            #    self.add_nodes([s])
             # Add destination node to the bn if it does not already exist
-            if d not in self.graph:
-                self.add_nodes([d])
+            # if d not in self.graph:
+            #    self.add_nodes([d])
             # Add the edge
             self.graph[s].append(d)
 
-    def gen_node_queue(self) -> list[str]:
+    def gen_node_queue(self) -> list[Id]:
         """
         Create the topological node ordering of the Bayesian Network using Khan's algorithm.
         This method should only be called once the network structure has been completely defined.
@@ -77,48 +78,49 @@ class BayesianNetwork:
     def initialize(self):
         self.node_queue = self.gen_node_queue()
         
-    def get_node(self, nid: str):
+    def get_node(self, nid: Id):
         return self.node_map[nid]
 
-    def get_nodes(self) -> list[str]:
+    def get_nodes(self) -> list[Id]:
         return self.node_map.keys()
 
-    def get_edges(self) -> list[(str, str)]:
+    def get_edges(self) -> list[Edge]:
         edges = []
         for s in self.graph:
             for d in self.graph[s]:
                 edges.append((s, d))
         return edges
 
-    def get_parents(self, node_id: str) -> list[str]:
+    def get_parents(self, node_id: Id) -> list[Id]:
         parents = []
         for nid in self.node_map:
             if node_id in self.graph[nid]:
                 parents.append(nid)
         return parents
 
-    def get_pt(self, node_id: str) -> pd.DataFrame:
+    def get_pt(self, node_id: Id) -> pd.DataFrame:
         return self.node_map[node_id].get_pt()
 
-    def get_node_queue(self) -> list[str]:
+    def get_node_queue(self) -> list[Id]:
         return self.node_queue
 
-    def is_leaf(self, node_id: str) -> bool:
+    def is_leaf(self, node_id: Id) -> bool:
         return len(self.graph[node_id]) == 0
 
-    def is_root(self, node_id: str) -> bool:
+    def is_root(self, node_id: Id) -> bool:
         parents = []
         for key in self.graph:
             if node_id in self.graph[key]:
                 parents.append(key)
         return len(parents) == 0
 
-    def add_pt(self, node_id: str, pt: dict[str, int]):
+    def add_pt(self, node_id: Id, pt: dict[Id, Id]):
         self.node_map[node_id].add_pt(pt)
 
-    def get_nodes_by_type(self, node_type: Type(Node)) -> list[str]:
+    def get_nodes_by_type(self, node_type: Type(Node)) -> list[Id]:
         return [k for k, v in self.node_map.items() if type(v) is node_type]
 
+    # FIXME: No mutable arguments as default arguments
     def query(self, query: list[str], evidence: dict[str, int] = {}, n_samples: int = 100) -> pd.DataFrame:
         """
         Applies the rejection sampling algorithm to approximate any probability distribution.
