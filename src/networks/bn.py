@@ -10,16 +10,25 @@ Edge = (str, str)
 
 class BayesianNetwork:
     """
-    A class for a Bayesian Network that uses the Binary Nodes class defined above.
+    A class for a Bayesian Network that uses the Node class defined above.
     """
 
     def __init__(self):
+        # The node map maps the node's ids to the node objects themselves
         self.node_map: dict[str,Node] = {}
+        
+        # The graph maps node ids to list of children node ids
         self.graph: dict[str,list[str]] = {}
+        
+        # The node queue lists the topological ordering of the nodes, for inference traversal
+        self.node_queue = None
 
     def draw(self):
+        # Create a networkx directed graph and add edges to it
         G = nx.DiGraph(directed=True)
         G.add_edges_from(self.get_edges())
+        
+        # Define options for networkx draw method
         options = {
             'node_color': 'orange',
             'node_size': 3000,
@@ -30,30 +39,43 @@ class BayesianNetwork:
         nx.draw_networkx(G, arrows=True, **options)
 
     def add_nodes(self, nodes: list[Node]):
+        # Iterate every node to be added
         for node in nodes:
+            # Make sure it does not already exist
             if node.get_id() not in self.node_map:
                 self.node_map[node.get_id()] = node
                 self.graph[node.get_id()] = []
 
     def add_edges(self, edges: list[Edge]):
-        for edge in edges:
-            s, d = edge
+        # Iterate every edge to be added
+        for s, d in edges:
+            # Add source node to the bn if it does not already exist
             if s not in self.graph:
-                self.graph[s] = []
+                self.add_nodes([s])
+            # Add destination node to the bn if it does not already exist
+            if d not in self.graph:
+                self.add_nodes([d])
+            # Add the edge
             self.graph[s].append(d)
 
-    def gen_node_queue(self):
+    def gen_node_queue(self) -> list[str]:
+        """
+        Create the topological node ordering of the Bayesian Network using Khan's algorithm.
+        This method should only be called once the network structure has been completely defined.
+        """
         nodes = [n for n in self.node_map if self.is_root(n)]
+        
         while len(nodes) < len(self.node_map):
             for node in self.node_map:
                 if node not in nodes:
                     parents = self.get_parents(node)
+                    # Add node to list if all its parents are on the list (safe to traverse)
                     if set(parents).issubset(nodes):
                         nodes.append(node)
-        self.node_queue = nodes
+        return nodes
 
     def initialize(self):
-        self.gen_node_queue()
+        self.node_queue = self.gen_node_queue()
         
     def get_node(self, nid: str):
         return self.node_map[nid]
@@ -82,11 +104,9 @@ class BayesianNetwork:
         return self.node_queue
 
     def is_leaf(self, node_id: str) -> bool:
-        # For a node to be leaf it cant have children
         return len(self.graph[node_id]) == 0
 
     def is_root(self, node_id: str) -> bool:
-        # For a node to be root it cant have parents
         parents = []
         for key in self.graph:
             if node_id in self.graph[key]:
@@ -101,7 +121,7 @@ class BayesianNetwork:
 
     def query(self, query: list[str], evidence: dict[str, int] = {}, n_samples: int = 100) -> pd.DataFrame:
         """
-        Applies the direct sampling algorithm
+        Applies the rejection sampling algorithm to approximate any probability distribution.
 
         Arguments:
             - query ([Id]): list of random variables to get the joint distribution from
