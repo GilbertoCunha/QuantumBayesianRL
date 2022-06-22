@@ -6,12 +6,12 @@ import pandas as pd
 
 # Defining types
 Id = Union[str, (str, int)]
-Edge = tuple[Id, Id]
+Edge = (Id, Id)
 
 
 class BayesianNetwork:
     """
-    A class for a Bayesian Network that uses the Node class defined above.
+    A class for a Bayesian Network.
     """
 
     def __init__(self):
@@ -60,9 +60,11 @@ class BayesianNetwork:
             self.graph[s].append(d)
 
     def gen_node_queue(self) -> list[Id]:
-        """
-        Create the topological node ordering of the Bayesian Network using Khan's algorithm.
+        """Create the topological node ordering of the Bayesian Network using Khan's algorithm.
         This method should only be called once the network structure has been completely defined.
+
+        Returns:
+            list[Id]: list of nodes in the Bayesian Network in topological order.
         """
         nodes = [n for n in self.node_map if self.is_root(n)]
         
