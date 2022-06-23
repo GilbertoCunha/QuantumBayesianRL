@@ -4,11 +4,9 @@ import pandas as pd
 import numpy as np
 
 # Defining types
-Id = Union[str, (str, int)]
+Id = Union[str, tuple[str, int]]
 
 # FIXME: This code assumes the PT's column name for the probability column is "Prob".
-
-
 class Node:
     """
     A class for a Bayesian Network node of a boolean random variable

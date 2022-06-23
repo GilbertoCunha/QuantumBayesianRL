@@ -1,6 +1,6 @@
 from numpy.testing import assert_almost_equal
 from src.networks.bn import BayesianNetwork
-from src.networks.nodes import StaticNode
+from src.networks.nodes import Node
 import pandas as pd
 import unittest
 
@@ -9,14 +9,17 @@ class TestBayesianNetwork(unittest.TestCase):
 
     def setUp(self):
         bn = BayesianNetwork()
-        bn.add_nodes([StaticNode("a"), StaticNode("b"), StaticNode("c")])
+        bn.add_nodes([Node("a", [0, 1]), Node("b", [0, 1]), Node("c", [0, 1])])
         self.edges = [("a", "b"), ("b", "c"), ("a", "c")]
         bn.add_edges(self.edges)
         a_dict = {"a": [0, 1], "Prob": [0.2, 0.8]}
-        b_dict = {"a": [0, 0, 1, 1], "b": [
-            0, 1, 0, 1], "Prob": [0.2, 0.8, 0.3, 0.7]}
-        c_dict = {"a": [0, 0, 0, 0, 1, 1, 1, 1], "b": [0, 0, 1, 1, 0, 0, 1, 1], "c": [
-            0, 1, 0, 1, 0, 1, 0, 1], "Prob": [0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.4, 0.6]}
+        b_dict = {"a": [0, 0, 1, 1], 
+                  "b": [0, 1, 0, 1], 
+                  "Prob": [0.2, 0.8, 0.3, 0.7]}
+        c_dict = {"a": [0, 0, 0, 0, 1, 1, 1, 1], 
+                  "b": [0, 0, 1, 1, 0, 0, 1, 1], 
+                  "c": [0, 1, 0, 1, 0, 1, 0, 1], 
+                  "Prob": [0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.4, 0.6]}
         bn.add_pt("a", a_dict)
         bn.add_pt("b", b_dict)
         bn.add_pt("c", c_dict)

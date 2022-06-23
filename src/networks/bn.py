@@ -5,8 +5,8 @@ import networkx as nx
 import pandas as pd
 
 # Defining types
-Id = Union[str, (str, int)]
-Edge = (Id, Id)
+Id = Union[str, tuple[str, int]]
+Edge = tuple[Id, Id]
 
 
 class BayesianNetwork:
@@ -121,9 +121,23 @@ class BayesianNetwork:
 
     def get_nodes_by_type(self, node_type: Type(Node)) -> list[Id]:
         return [k for k, v in self.node_map.items() if type(v) is node_type]
+    
+    def get_sample(self) -> dict[Id, int]:
+        """Returns a sample from every node in the Bayesian Network. Uses the Node class sample method.
 
-    # FIXME: No mutable arguments as default arguments
-    def query(self, query: list[str], evidence: dict[str, int] = {}, n_samples: int = 100) -> pd.DataFrame:
+        Returns:
+            dict[Id, int]: a dictionary mapping node ids to their respective sample values.
+        """
+        # Create empty sample and get root nodes
+        sample = {}
+
+        # Sample a result from each root node
+        for node in self.node_queue:
+            sample[node] = self.node_map[node].get_sample(sample)
+            
+        return sample
+
+    def query(self, query: list[str], evidence: dict[str, int] = None, n_samples: int = 100) -> pd.DataFrame:
         """
         Applies the rejection sampling algorithm to approximate any probability distribution.
 
@@ -134,34 +148,30 @@ class BayesianNetwork:
 
         Return (pd.Dataframe): a dataframe that represents the joint distribution
         """
-
-        # Create empty sampling dictionary
-        sample_dict = {name: [] for name in self.node_map}
+        
+        # Initialize evidence as empty dict if it is None
+        evidence = {} if evidence is None else evidence
+            
+        # Create empty DataFrame for sample collection
+        sample_df = pd.DataFrame()
 
         # Create multiple samples
-        cur_samples = 0
-        while (cur_samples < n_samples):
+        num_samples = 0
+        while (num_samples < n_samples):
 
-            # Create empty sample and get root nodes
-            sample = {}
+            # Extract sample from the Bayesian Network
+            sample = self.get_sample()
 
-            # Sample a result from each root node
-            for node in self.node_queue:
-                # Sample from head of queue
-                sample[node] = self.node_map[node].get_sample(sample)
-
-            # Pass sample results to sample_dict if it matches with evidence
+            # Store sample if it matches with evidence
             matches = [sample[name] == evidence[name] for name in evidence]
             if all(matches):
-                for name in sample_dict:
-                    sample_dict[name].append(sample[name])
-                cur_samples += 1
+                sample_df = sample_df.append(sample, ignore_index=True)
+                num_samples += 1
 
         # Turn result into probability table
-        df = pd.DataFrame(sample_dict)
-        df = df.value_counts(normalize=True).to_frame("Prob")
+        sample_df = sample_df.value_counts(normalize=True).to_frame("Prob")
 
         # Group over query variables and sum over all other variables
-        df = df.groupby(query).sum().reset_index()
+        sample_df = sample_df.groupby(query).sum().reset_index()
 
-        return df
+        return sample_df
