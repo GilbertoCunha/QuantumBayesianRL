@@ -147,7 +147,7 @@ class QuantumBayesianNetwork:
         return circuit
     
     @staticmethod
-    def bitGen(n):
+    def bitGen(n: int):
         return [''.join(i) for i in itertools.product('01', repeat=n)]
 
     def query(self, query, evidence={}, n_samples=1000, barriers=False):

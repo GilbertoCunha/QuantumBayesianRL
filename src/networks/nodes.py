@@ -10,6 +10,8 @@ Id = Union[str, tuple[str, int]]
 class DiscreteNode:
     """
     A class for a Bayesian Network node of a discrete random variable.
+    
+    # TODO: change value space definition to be a set instead of a list.
     """
 
     def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None):

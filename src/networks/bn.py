@@ -1,6 +1,6 @@
 from __future__ import annotations
 from src.networks.nodes import DiscreteNode
-from typing import Union
+from typing import Union, Callable
 import networkx as nx
 import pandas as pd
 
@@ -23,6 +23,15 @@ class BayesianNetwork:
         
         # The node queue lists the topological ordering of the nodes, for inference traversal
         self.node_queue: list[Id] = None
+        
+    def get_node_queue(self) -> list[Id]:
+        return self.node_queue
+    
+    def get_node_map(self) -> dict[Id, DiscreteNode]:
+        return self.node_map
+    
+    def get_graph(self) -> dict[Id, list[Id]]:
+        return self.graph
 
     def draw(self):
         # Create a networkx directed graph and add edges to it
@@ -48,15 +57,9 @@ class BayesianNetwork:
                 self.graph[node.get_id()] = []
 
     def add_edges(self, edges: list[Edge]):
+        # TODO: handle cases where source or destination nodes are not in the Bayesian network.
         # Iterate every edge to be added
         for s, d in edges:
-            # Add source node to the bn if it does not already exist
-            # if s not in self.graph:
-            #    self.add_nodes([s])
-            # Add destination node to the bn if it does not already exist
-            # if d not in self.graph:
-            #    self.add_nodes([d])
-            # Add the edge
             self.graph[s].append(d)
 
     def gen_node_queue(self) -> list[Id]:
@@ -87,40 +90,34 @@ class BayesianNetwork:
         return self.node_map.keys()
 
     def get_edges(self) -> list[Edge]:
-        edges = []
-        for s in self.graph:
-            for d in self.graph[s]:
-                edges.append((s, d))
-        return edges
+        return [(s, d) for s in self.graph for d in self.graph[s]]
 
     def get_parents(self, node_id: Id) -> list[Id]:
-        parents = []
-        for nid in self.node_map:
-            if node_id in self.graph[nid]:
-                parents.append(nid)
-        return parents
+        return [k for k in self.graph if node_id in self.graph[k]]
 
     def get_pt(self, node_id: Id) -> pd.DataFrame:
         return self.node_map[node_id].get_pt()
-
-    def get_node_queue(self) -> list[Id]:
-        return self.node_queue
+    
+    def add_pt(self, node_id: Id, pt: pd.DataFrame):
+        self.node_map[node_id].add_pt(pt)
+        
+    def fix_value(self, node_id: Id, value: int):
+        self.node_map[node_id].fix_value(value)
 
     def is_leaf(self, node_id: Id) -> bool:
         return len(self.graph[node_id]) == 0
 
     def is_root(self, node_id: Id) -> bool:
-        parents = []
-        for key in self.graph:
-            if node_id in self.graph[key]:
-                parents.append(key)
-        return len(parents) == 0
+        return len(self.get_parents(node_id)) == 0
 
     def add_pt(self, node_id: Id, pt: dict[Id, Id]):
         self.node_map[node_id].add_pt(pt)
 
     def get_nodes_by_type(self, node_type: str) -> list[Id]:
         return [k for k, v in self.node_map.items() if v.get_type() == node_type]
+    
+    def get_nodes_by_key(self, key: Callable[[Id, DiscreteNode], bool]):
+        return [n for n in self.node_map.keys() if key(n, self.node_map[n])]
     
     def get_sample(self) -> dict[Id, int]:
         """Returns a sample from every node using the direct sampling algorithm. 
@@ -139,16 +136,16 @@ class BayesianNetwork:
             
         return sample
 
-    def query(self, query: list[str], evidence: dict[str, int] = None, n_samples: int = 100) -> pd.DataFrame:
+    def query(self, query: list[str], evidence: dict[Id, int] = None, n_samples: int = 100) -> pd.DataFrame:
         """
         Applies the rejection sampling algorithm to approximate any probability distribution.
 
         Arguments:
-            - query ([Id]): list of random variables to get the joint distribution from
-            - evidence ({Id: int}): dictionary of random variables and their respective values as evidence
-            - n_samples (int): number of samples to retrieve
+            - query ([Id]): node ids for the random variables of the desired probability distribution.
+            - evidence ({Id: int}): values for random variables as evidence for the inference. Defaults to None.
+            - n_samples (int): number of samples to retrieve. Defaults to 100.
 
-        Return (pd.Dataframe): a dataframe that represents the joint distribution
+        Return (pd.Dataframe): a dataframe that represents the inferred posterior distribution.
         """
         
         # Initialize evidence as empty dict if it is None
@@ -156,6 +153,12 @@ class BayesianNetwork:
             
         # Create empty DataFrame for sample collection
         sample_df = pd.DataFrame()
+        
+        # Fix the value of every root node in evidence for faster inference
+        root_nodes = [n for n in self.get_nodes() if (self.is_root(n) and n in evidence)]
+        backup_pts = {r: self.get_pt(r) for r in root_nodes}
+        for r in root_nodes:
+            self.fix_value(r, evidence[r])
 
         # Create multiple samples
         num_samples = 0
@@ -169,6 +172,10 @@ class BayesianNetwork:
             if all(matches):
                 sample_df = sample_df.append(sample, ignore_index=True)
                 num_samples += 1
+                
+        # Re-change probability tables of root nodes in evidence
+        for r in backup_pts:
+            self.add_pt(r, backup_pts[r])
 
         # Turn result into probability table
         sample_df = sample_df.value_counts(normalize=True).to_frame("Prob")

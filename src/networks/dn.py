@@ -1,68 +1,35 @@
 from __future__ import annotations
-from src.networks.nodes import StateNode, ActionNode, UtilityNode, EvidenceNode
-from src.networks.qbn import QuantumBayesianNetwork
 from src.networks.bn import BayesianNetwork
-from typing import Union, Callable
-import matplotlib.pyplot as plt
+from typing import Union
 from tqdm import tqdm
-import networkx as nx
-import pandas as pd
 import itertools
 
 # Defining types
-Id = Union[str, tuple]
-Node = Union[StateNode, ActionNode, UtilityNode, EvidenceNode]
+Id = Union[str, tuple[str, int]]
+
 
 class DecisionNetwork(BayesianNetwork):
+    """Extends the Bayesian network class to create a Decision network.
+    Decision networks typically have action, evidence, and utility nodes (which can be defined using the node_type attribute of the DiscreteNode class).
+    They augment the Bayesian network class by allowing the extraction of a near-optimal action via the query_decision method.
+    This near-optimal action should maximize (or be close to) the expected utility.
+    """
     
-    def __init__(self):
-        super().__init__()
-            
-    def draw(self):
-        # Create nx graph
-        G = nx.DiGraph(directed=True)
-        G.add_edges_from(self.get_edges())
-        pos = nx.nx_pydot.graphviz_layout(G, prog="dot")
-        
-        # Draw state nodes
-        nodes = self.get_nodes_by_type(StateNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=nodes, node_color="orange", node_size=3000, node_shape="o")
-        
-        # Draw action nodes
-        action_nodes = self.get_nodes_by_type(ActionNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=action_nodes, node_color="blue", node_size=3000, node_shape="s")
-        
-        # Draw utility nodes
-        utility_nodes = self.get_nodes_by_type(UtilityNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=utility_nodes, node_color="green", node_size=3000, node_shape="d")
-        
-        # Draw evidence nodes
-        utility_nodes = self.get_nodes_by_type(EvidenceNode)
-        nx.draw_networkx_nodes(G, pos, nodelist=utility_nodes, node_color="red", node_size=3000, node_shape="o")
-        
-        # Draw network edges
-        nx.draw_networkx_edges(G, pos, node_size=3000)
-        
-        # Draw node labels
-        labels = {n: n for n in self.node_map}
-        nx.draw_networkx_labels(G, pos, labels)
-        plt.show()
-        
-    def get_nodes_by_key(self, key: Callable[[Id, Node], bool]):
-        return [n for n in self.node_map.keys() if key(n, self.node_map[n])]
-        
-    @staticmethod
-    def bitGen(n: int):
-        return [''.join(i) for i in itertools.product('01', repeat=n)]
-    
-    def query_decision(self, query: list[str], evidence: dict[str, int], n_samples: int = 1000, quantum: bool = False) -> dict[str, int]:
-        # Get all action nodes
-        action_nodes = self.get_nodes_by_type(ActionNode)
-        
-        # Get all actions for all the action nodes
-        action_space = {}
-        for a in action_nodes:
-            action_space[a] = self.node_map[a].get_value_space() 
+    def query_decision(self, query: list[Id], evidence: dict[Id, int] = None, n_samples: int = 1000, verbose: bool = False) -> dict[Id, int]:
+        """Selects a near-optimal action using the Bayesian network class's inference methods.
+
+        Args:
+            query (list[Id]): the query random variables for the inference. You should choose the utility node of the network.
+            evidence (dict[Id, int], optional): values for random variables as evidence for the inference. Defaults to None.
+            n_samples (int, optional): number of samples to use in the Bayesian network inference. Defaults to 1000.
+            verbose (bool, optional): display progress bar for action space iteration. Defaults to False.
+
+        Returns:
+            dict[Id, int]: a dictionary containing the near-optimal values for each action random variable.
+        """
+        # Get all actions for all the action nodes not in evidence
+        action_nodes = self.get_nodes_by_type("action")
+        action_space = {a: self.node_map[a].get_value_space() for a in action_nodes if a not in evidence}
         
         # Create a list of all possible actions to be taken
         keys, values = zip(*action_space.items())
@@ -70,18 +37,11 @@ class DecisionNetwork(BayesianNetwork):
         
         # Iterate each set of actions in action space
         results = []
-        for actions in tqdm(action_space, total=len(action_space), desc="Iterating actions", leave=True):
-            
-            # Set the actions of the action nodes to the current set of actions
-            for action_node in action_nodes:
-                self.node_map[action_node].set_action(actions[action_node])
-                
-            # Perform query
-            if quantum:
-                qbn = QuantumBayesianNetwork(self)
-                df = qbn.query(query=[query], evidence=evidence, n_samples=n_samples)
-            else:
-                df = self.query(query=[query], evidence=evidence, n_samples=n_samples)
+        iterator = tqdm(action_space, total=len(action_space), desc="Iterating actions", leave=True) if verbose else action_space
+        for actions in iterator:
+            # Add actions to evidence and perform query
+            new_evidence = {**evidence, **actions}
+            df = self.query(query=[query], evidence=new_evidence, n_samples=n_samples)
             
             # Get expected utility
             eu = float((df[query] * df["Prob"]).sum())
@@ -91,4 +51,3 @@ class DecisionNetwork(BayesianNetwork):
         r = max(results, key=lambda x: x[1])[0]
         
         return r
-        
