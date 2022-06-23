@@ -5,17 +5,16 @@ from src.networks.dn import DecisionNetwork
 import matplotlib.pyplot as plt
 from typing import Union
 import pandas as pd
-import numpy as np
 
 Node = Union[TreeBeliefNode, TreeObservationNode]
 
 class Tree:
-    def __init__(self, horizon: int, discount: float, action_space: [int], observation_space: [int]):
+    def __init__(self, horizon: int, discount: float, action_space: list[int], observation_space: list[int]):
         # Initialize arguments
         self.horizon: int = horizon
         self.discount: float = discount
-        self.action_space: [int] = action_space
-        self.observation_space: [int] = observation_space
+        self.action_space: list[int] = action_space
+        self.observation_space: list[int] = observation_space
         
         # Build the tree
         self.node = self.build_tree(0, 0)
@@ -35,28 +34,13 @@ class Tree:
     def get_node(self):
         return self.node
         
-    def draw_aux(self, node: Node, depth: int):
-        r = [(node.get_value(), depth)]
-        for i, child in enumerate(node.get_children()):
-            r += self.draw_aux(child, depth+1)
-        return r
-        
-    def __repr__(self):
-        r = self.draw_aux(self.get_node(), 0)
-        r = sorted(r, key=lambda x: x[1])
-        r_ = []
-        for v, d in r:
-            r_.append(f"Value: {v} | Depth: {d}")
-        r = "\n".join(r_)
-        return r
-        
     def build_tree_aux(self, action: int, depth: int):
         # Create node
         r = TreeObservationNode(action, depth)
         
         # Create children for each observation
-        if depth < self.get_horizon():
-            for observation in self.get_observation_space():
+        if depth < self.horizon:
+            for observation in self.observation_space:
                 r.add_children(self.build_tree(observation, depth+1))
             
         return r
@@ -66,7 +50,7 @@ class Tree:
         r = TreeBeliefNode(observation, depth)
         
         # Add children
-        for action in self.get_action_space():
+        for action in self.action_space:
             r.add_children(self.build_tree_aux(action, depth))
                 
         return r
@@ -76,8 +60,8 @@ class Tree:
         # Get id for next state
         snid = ddn.get_nodes_by_key(lambda nid, n: (isinstance(n, StateNode) and ddn.is_root(nid)))[0]
         s_nid = ddn.get_nodes_by_key(lambda nid, n: (isinstance(n, StateNode) and (not ddn.is_root(nid))))[0]
-        anid = ddn.get_nodes_by_key(lambda nid, n: isinstance(n, ActionNode))[0]
-        onid = ddn.get_nodes_by_key(lambda nid, n: isinstance(n, EvidenceNode))[0]
+        anid = ddn.get_nodes_by_key(lambda n: isinstance(n, ActionNode))[0]
+        onid = ddn.get_nodes_by_key(lambda n: isinstance(n, EvidenceNode))[0]
         ddn.node_map[anid].set_action(a)
         r = ddn.query(query=[s_nid], evidence={onid: o})
         r = r.rename(columns={s_nid: snid}, inplace=False)
@@ -114,14 +98,14 @@ class Tree:
             
             # Recursive call for every children action node
             # To get greedy value
-            V = float("-inf") if (b_node.get_depth() <= self.get_horizon()) else 0
+            V = float("-inf") if (b_node.get_depth() <= self.horizon) else 0
             for o_node in b_node.get_children():
                 q = self.q_value(ddn, o_node, b_)
                 if q > V:
                     V = q
                     
             # Increment value for observation node
-            r += self.get_discount() * obs_df[obs_df[onid] == b_node.get_value()]["Prob"].iloc[0] * V
+            r += self.discount * obs_df[obs_df[onid] == b_node.get_value()]["Prob"].iloc[0] * V
            
         # Revert belief-state to original df
         ddn.node_map[snid].add_pt(b)
