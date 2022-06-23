@@ -1,6 +1,6 @@
 from numpy.testing import assert_almost_equal
 from src.networks.bn import BayesianNetwork
-from src.networks.nodes import Node
+from src.networks.nodes import DiscreteNode
 import pandas as pd
 import unittest
 
@@ -9,7 +9,7 @@ class TestBayesianNetwork(unittest.TestCase):
 
     def setUp(self):
         bn = BayesianNetwork()
-        bn.add_nodes([Node("a", [0, 1]), Node("b", [0, 1]), Node("c", [0, 1])])
+        bn.add_nodes([DiscreteNode("a", "state", [0, 1]), DiscreteNode("b", "state", [0, 1]), DiscreteNode("c", "state", [0, 1])])
         self.edges = [("a", "b"), ("b", "c"), ("a", "c")]
         bn.add_edges(self.edges)
         a_dict = {"a": [0, 1], "Prob": [0.2, 0.8]}
@@ -53,20 +53,16 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertFalse(self.bn.is_leaf("a"))
 
     def test_add_pt(self):
-        self.assertTrue(pd.DataFrame.equals(
-            pd.DataFrame(self.a_dict), self.bn.get_pt("a")))
-        self.assertTrue(pd.DataFrame.equals(
-            pd.DataFrame(self.b_dict), self.bn.get_pt("b")))
-        self.assertTrue(pd.DataFrame.equals(
-            pd.DataFrame(self.c_dict), self.bn.get_pt("c")))
+        self.assertTrue(pd.DataFrame.equals(pd.DataFrame(self.a_dict), self.bn.get_pt("a")))
+        self.assertTrue(pd.DataFrame.equals(pd.DataFrame(self.b_dict), self.bn.get_pt("b")))
+        self.assertTrue(pd.DataFrame.equals(pd.DataFrame(self.c_dict), self.bn.get_pt("c")))
 
     def test_initialize(self):
         self.bn.initialize()
         node_queue = self.bn.get_node_queue()
         prev_nodes = []
         for node in node_queue:
-            self.assertTrue(
-                all(elem in prev_nodes for elem in self.bn.get_parents(node)))
+            self.assertTrue(all(elem in prev_nodes for elem in self.bn.get_parents(node)))
             prev_nodes.append(node)
 
     def test_query(self):
@@ -79,10 +75,8 @@ class TestBayesianNetwork(unittest.TestCase):
 
         # Get pt from the network
         a_pt = self.bn.get_pt("a")
-        b_pt = self.bn.get_pt("b").groupby(
-            ["b"])[["Prob"]].agg("sum").reset_index()
-        c_pt = self.bn.get_pt("c").groupby(
-            ["c"])[["Prob"]].agg("sum").reset_index()
+        b_pt = self.bn.get_pt("b").groupby(["b"])[["Prob"]].agg("sum").reset_index()
+        c_pt = self.bn.get_pt("c").groupby(["c"])[["Prob"]].agg("sum").reset_index()
 
         # Normalize pts
         b_pt["Prob"] /= b_pt["Prob"].sum()

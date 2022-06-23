@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.networks.nodes import Node
+from src.networks.nodes import DiscreteNode
 from typing import Union
 import networkx as nx
 import pandas as pd
@@ -16,7 +16,7 @@ class BayesianNetwork:
 
     def __init__(self):
         # The node map maps the node's ids to the node objects themselves
-        self.node_map: dict[Id, Node] = {}
+        self.node_map: dict[Id, DiscreteNode] = {}
         
         # The graph maps node ids to list of children node ids
         self.graph: dict[Id, list[Id]] = {}
@@ -39,7 +39,7 @@ class BayesianNetwork:
         }
         nx.draw_networkx(G, arrows=True, **options)
 
-    def add_nodes(self, nodes: list[Node]):
+    def add_nodes(self, nodes: list[DiscreteNode]):
         # Iterate every node to be added
         for node in nodes:
             # Make sure it does not already exist
@@ -60,7 +60,7 @@ class BayesianNetwork:
             self.graph[s].append(d)
 
     def gen_node_queue(self) -> list[Id]:
-        """Create the topological node ordering of the Bayesian Network using Khan's algorithm.
+        """Create the topological node ordering of the Bayesian network using Khan's algorithm.
         This method should only be called once the network structure has been completely defined.
 
         Returns:
@@ -119,19 +119,21 @@ class BayesianNetwork:
     def add_pt(self, node_id: Id, pt: dict[Id, Id]):
         self.node_map[node_id].add_pt(pt)
 
-    def get_nodes_by_type(self, node_type: Type(Node)) -> list[Id]:
-        return [k for k, v in self.node_map.items() if type(v) is node_type]
+    def get_nodes_by_type(self, node_type: str) -> list[Id]:
+        return [k for k, v in self.node_map.items() if v.get_type() == node_type]
     
     def get_sample(self) -> dict[Id, int]:
-        """Returns a sample from every node in the Bayesian Network. Uses the Node class sample method.
+        """Returns a sample from every node using the direct sampling algorithm. 
+        Uses the DiscreteNode class sample method.
+        Should only be called after the Bayesian network has been initialized, otherwise returns empty dict.
 
         Returns:
             dict[Id, int]: a dictionary mapping node ids to their respective sample values.
         """
-        # Create empty sample and get root nodes
+        # Create empty sample
         sample = {}
 
-        # Sample a result from each root node
+        # Sample a result from each node
         for node in self.node_queue:
             sample[node] = self.node_map[node].get_sample(sample)
             

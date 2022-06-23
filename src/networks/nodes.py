@@ -7,22 +7,25 @@ import numpy as np
 Id = Union[str, tuple[str, int]]
 
 # FIXME: This code assumes the PT's column name for the probability column is "Prob".
-class Node:
+class DiscreteNode:
     """
-    A class for a Bayesian Network node of a boolean random variable
+    A class for a Bayesian Network node of a discrete random variable.
     """
 
-    def __init__(self, node_id: Id, value_space: list[float], pt: pd.DataFrame = None):
+    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None):
         self.id: Id = node_id
+        self.type = node_type
         self.value_space: list[float] = value_space
         self.pt: pd.DataFrame = pt
-        self.backup_pt: pd.DataFrame = None
 
     def get_id(self) -> Id:
         return self.id
 
     def get_pt(self) -> pd.DataFrame:
         return self.pt
+    
+    def get_type(self) -> str:
+        return self.type
 
     def get_value_space(self) -> list[float]:
         return self.value_space
@@ -30,14 +33,10 @@ class Node:
     def add_pt(self, pt: dict[Id, list[int]]):
         self.pt = pd.DataFrame(pt)
         
-    def backup_replace_pt(self, pt: dict[Id, list[int]]):
-        if self.backup_pt is None:
-            self.backup_pt = self.pt
-            self.pt = pt
-        
-    def reset_backup_pt(self):
-        self.pt = self.backup_pt
-        self.backup_pt = None
+    def fix_value(self, value: int):
+        values = self.get_value_space()
+        probs = [int(value==i) for i in range(len(values))]
+        self.pt = pd.DataFrame({self.get_id(): values, "Prob": probs})
 
     def get_sample(self, sample: dict[Id, int]) -> int:
         """
@@ -67,26 +66,3 @@ class Node:
                 break
 
         return r
-
-
-class ActionNode(Node):
-
-    def __init__(self, node_id: Id, value_space: list[int], pt: pd.DataFrame = None):
-        super().__init__(node_id, value_space, pt)
-
-    def set_action(self, value: int):
-        values = self.get_value_space()
-        probs = [int(value==i) for i in range(len(values))]
-        self.pt = pd.DataFrame({self.get_id(): values, "Prob": probs})
-
-
-class UtilityNode(Node):
-    pass
-
-
-class StateNode(Node):
-    pass
-
-
-class EvidenceNode(Node):
-    pass
