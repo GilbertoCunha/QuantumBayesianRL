@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 
 # Defining types
-Id = Union[str, tuple[str, int]]
+Id = str
+
 
 # FIXME: This code assumes the PT's column name for the probability column is "Prob".
 class DiscreteNode:
@@ -14,11 +15,12 @@ class DiscreteNode:
     # TODO: change value space definition to be a set instead of a list.
     """
 
-    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None):
-        self.id: Id = node_id
+    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None, time: int = None):
+        self.id = node_id
         self.type = node_type
-        self.value_space: list[float] = value_space
-        self.pt: pd.DataFrame = pt
+        self.value_space = value_space
+        self.pt = pt
+        self.time = time
 
     def get_id(self) -> Id:
         return self.id
@@ -31,9 +33,23 @@ class DiscreteNode:
 
     def get_value_space(self) -> list[float]:
         return self.value_space
+    
+    def get_time(self) -> int:
+        return self.time
+    
+    def increase_time(self) -> int:
+        self.time += 1
 
     def add_pt(self, pt: dict[Id, list[int]]):
         self.pt = pd.DataFrame(pt)
+        
+    def rename_pt_column(self, old_col: Id, new_col: Id):
+        if self.pt is not None:
+            self.pt.rename(columns={old_col, new_col})
+    
+    def change_id(self, node_id: Id):
+        self.rename_pt_column(self.id, node_id)
+        self.id = self.node_id
         
     def fix_value(self, value: int):
         values = self.get_value_space()

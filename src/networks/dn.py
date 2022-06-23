@@ -5,7 +5,7 @@ from tqdm import tqdm
 import itertools
 
 # Defining types
-Id = Union[str, tuple[str, int]]
+Id = str
 
 
 class DecisionNetwork(BayesianNetwork):
@@ -29,7 +29,7 @@ class DecisionNetwork(BayesianNetwork):
         """
         # Get all actions for all the action nodes not in evidence
         action_nodes = self.get_nodes_by_type("action")
-        action_space = {a: self.node_map[a].get_value_space() for a in action_nodes if a not in evidence}
+        action_space = {a: self.node_dict[a].get_value_space() for a in action_nodes if a not in evidence}
         
         # Create a list of all possible actions to be taken
         keys, values = zip(*action_space.items())
