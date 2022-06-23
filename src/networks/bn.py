@@ -37,6 +37,7 @@ class BayesianNetwork:
         # Create a networkx directed graph and add edges to it
         G = nx.DiGraph(directed=True)
         G.add_edges_from(self.get_edges())
+        pos = nx.nx_pydot.graphviz_layout(G, prog="dot")
         
         # Define options for networkx draw method
         options = {
@@ -46,7 +47,7 @@ class BayesianNetwork:
             'arrowstyle': '-|>',
             'arrowsize': 12,
         }
-        nx.draw_networkx(G, arrows=True, **options)
+        nx.draw_networkx(G, pos, arrows=True, **options)
 
     def add_nodes(self, nodes: list[DiscreteNode]):
         # Iterate every node to be added
