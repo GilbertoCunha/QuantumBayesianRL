@@ -15,6 +15,11 @@ class DecisionNetwork(BayesianNetwork):
     This near-optimal action should maximize (or be close to) the expected utility.
     """
     
+    action_type: str = "action"
+    state_type: str = "state"
+    observation_type: str = "observation"
+    reward_type: str = "reward"
+    
     def query_decision(self, query: list[Id], evidence: dict[Id, int] = None, n_samples: int = 1000, verbose: bool = False) -> dict[Id, int]:
         """Selects a near-optimal action using the Bayesian network class's inference methods.
 
@@ -28,7 +33,7 @@ class DecisionNetwork(BayesianNetwork):
             dict[Id, int]: a dictionary containing the near-optimal values for each action random variable.
         """
         # Get all actions for all the action nodes not in evidence
-        action_nodes = self.get_nodes_by_type("action")
+        action_nodes = self.get_nodes_by_type(self.action_type)
         action_space = {a: self.node_dict[a].get_value_space() for a in action_nodes if a not in evidence}
         
         # Create a list of all possible actions to be taken

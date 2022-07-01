@@ -1,19 +1,17 @@
 from __future__ import annotations
 from src.networks.dn import DecisionNetwork
 
+# Define types
 Id = str
+Value = int
 
 
 class POMDP(DecisionNetwork):
-    action_type: str = "action"
-    state_type: str = "state"
-    observation_type: str = "observation"
-    reward_type: str = "reward"
     
-    def __init__(self, discount: float):
+    def __init__(self, discount: float, time: int):
         super().__init__()
         self.discount: float = discount
-        self.time: int = None
+        self.time: int = time
         
     def get_discount(self) -> float:
         return self.discount
@@ -21,14 +19,13 @@ class POMDP(DecisionNetwork):
     def get_time(self) -> int:
         return self.time
         
-    def calculate_time(self):
-        return min([v.get_time() for _, v in self.node_map.items()])
-    
-    def initialize(self):
-        super().initialize()
-        self.time = self.calculate_time()
+    def query_decision(self, *args, **kwargs):
+        raise NotImplemented("Method query_decision not implemented for POMDP.")
         
-    def increase_time(self):
-        for _, node in self.node_map.items():
-            node.increase_time()
-        self.time += 1
+    def get_observation_sample(self, evidence: dict[Id, Value]) -> dict[Id, Value]:
+        # Evidence dict is a dictionary of the action values to take
+        query = self.get_nodes_by_type(self.observation_type)
+        sample = self.query(query, evidence, n_samples=1).to_dict(orient="list")
+        sample = {k: v.pop() for k, v in sample.items()}
+        return sample
+        

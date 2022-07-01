@@ -15,12 +15,11 @@ class DiscreteNode:
     # TODO: change value space definition to be a set instead of a list.
     """
 
-    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None, time: int = None):
+    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None):
         self.id = node_id
         self.type = node_type
         self.value_space = value_space
         self.pt = pt
-        self.time = time
 
     def get_id(self) -> Id:
         return self.id
@@ -33,12 +32,6 @@ class DiscreteNode:
 
     def get_value_space(self) -> list[float]:
         return self.value_space
-    
-    def get_time(self) -> int:
-        return self.time
-    
-    def increase_time(self) -> int:
-        self.time += 1
 
     def add_pt(self, pt: dict[Id, list[int]]):
         self.pt = pd.DataFrame(pt)

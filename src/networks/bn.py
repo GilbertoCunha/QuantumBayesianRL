@@ -185,7 +185,9 @@ class BayesianNetwork:
             # Store sample if it matches with evidence
             matches = [sample[name] == evidence[name] for name in evidence]
             if all(matches):
-                sample_df = sample_df.append(sample, ignore_index=True)
+                sample = {k: [v] for k, v in sample.items()}
+                sample = pd.DataFrame(sample)
+                sample_df = pd.concat([sample_df, sample], ignore_index=True, axis=0)
                 num_samples += 1
                 
         # Re-change probability tables of root nodes in evidence
