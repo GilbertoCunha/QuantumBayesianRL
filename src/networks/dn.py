@@ -1,11 +1,10 @@
 from __future__ import annotations
 from src.networks.bn import BayesianNetwork
-from typing import Union
 from tqdm import tqdm
 import itertools
 
 # Defining types
-Id = str
+Id = str | tuple[str, int]
 
 
 class DecisionNetwork(BayesianNetwork):

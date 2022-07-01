@@ -1,11 +1,11 @@
 from __future__ import annotations
 from src.networks.nodes import DiscreteNode
-from typing import Union, Callable
+from typing import Hashable, Any, Callable
 import networkx as nx
 import pandas as pd
 
 # Defining types
-Id = str
+Id = str | tuple[str, int]
 Edge = tuple[Id, Id]
 
 
@@ -24,6 +24,8 @@ class BayesianNetwork:
         # The node queue lists the topological ordering of the nodes, for inference traversal
         self.node_queue: list[Id] = None
         
+        self.time: int = None
+        
     def get_node_queue(self) -> list[Id]:
         return self.node_queue
     
@@ -32,6 +34,13 @@ class BayesianNetwork:
     
     def get_graph(self) -> dict[Id, list[Id]]:
         return self.graph
+    
+    def get_time(self) -> int:
+        if self.time is None:
+            r = min([self.get_node(nid).get_time() for nid in self.get_nodes()])
+        else:
+            r = self.time
+        return r
 
     def draw(self):
         # Create a networkx directed graph and add edges to it
@@ -83,6 +92,20 @@ class BayesianNetwork:
 
     def initialize(self):
         self.node_queue = self.gen_node_queue()
+        self.time = self.get_time()
+        
+    def increase_time(self):
+        # TODO: throw exception when id type is not tuple
+        
+        # Iterate nodes in reverse order (due to time-step increase for no key collisions)
+        for n, t in self.node_queue[::-1]:
+            self.node_map[(n, t)].increase_time()
+            self.node_map[(n, t+1)] = self.node_map[(n, t)].pop()
+            self.graph[(n, t+1)] = [(n_, t_+1) for (n_, t_) in self.graph[(n, t)]]
+        
+        # Change node queue
+        self.node_queue = [(n, t+1) for (n, t) in self.node_queue]
+        self.time += 1
         
     def get_node(self, nid: Id):
         return self.node_dict[nid]
@@ -101,6 +124,9 @@ class BayesianNetwork:
     
     def add_pt(self, node_id: Id, pt: pd.DataFrame):
         self.node_dict[node_id].add_pt(pt)
+        
+    def add_attribute(self, node_id: Id, attribute: Hashable, value: Any):
+        self.node_dict[node_id].add_attribute(attribute, value)
         
     def change_id(self, old_id: Id, new_id: Id):
         f = lambda x: new_id if x == new_id else x

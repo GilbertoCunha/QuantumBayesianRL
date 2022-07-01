@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import Union
+from typing import Union, Hashable, Any
 import pandas as pd
 import numpy as np
 
 # Defining types
-Id = str
+Id = str | tuple[str, int]
 
 
 # FIXME: This code assumes the PT's column name for the probability column is "Prob".
@@ -15,14 +15,22 @@ class DiscreteNode:
     # TODO: change value space definition to be a set instead of a list.
     """
 
-    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None):
+    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None, attributes: dict = None):
         self.id = node_id
         self.type = node_type
         self.value_space = value_space
         self.pt = pt
+        self.attributes = {} if attributes is None else attributes
 
     def get_id(self) -> Id:
         return self.id
+    
+    def get_time(self) -> int:
+        if isinstance(self.id, tuple):
+            r = self.id[1]
+        else:
+            r = 0
+        return r
 
     def get_pt(self) -> pd.DataFrame:
         return self.pt
@@ -32,17 +40,37 @@ class DiscreteNode:
 
     def get_value_space(self) -> list[float]:
         return self.value_space
+    
+    def get_attributes(self) -> dict:
+        return self.attributes
+    
+    def remove_attribute(self, attribute: Hashable) -> Any:
+        return self.attributes.pop(attribute)
+    
+    def add_attribute(self, attribute: Hashable, value: Any):
+        self.attributes[attribute] = value
 
     def add_pt(self, pt: dict[Id, list[int]]):
         self.pt = pd.DataFrame(pt)
         
     def rename_pt_column(self, old_col: Id, new_col: Id):
         if self.pt is not None:
-            self.pt.rename(columns={old_col, new_col})
+            self.pt.rename(columns={old_col: new_col})
     
     def change_id(self, node_id: Id):
         self.rename_pt_column(self.id, node_id)
-        self.id = self.node_id
+        self.id = node_id
+        
+    def increase_time(self):
+        # TODO: exception when Id type does not match tuple
+        # Change id
+        n, t = self.id
+        self.id = (n, t+1)
+        
+        # Change pt columns
+        if self.pt is not None:
+            columns = {(n, t): (n, t+1) for (n, t) in self.pt}
+            self.pt.rename(columns=columns)
         
     def fix_value(self, value: int):
         values = self.get_value_space()
