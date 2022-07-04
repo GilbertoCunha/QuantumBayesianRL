@@ -3,7 +3,7 @@ from src.networks.dn import DecisionNetwork
 
 # Define types
 Id = tuple[str, int] # Id's must be tuple for a Dynamic Decision Network
-Value = int
+Value = int | float
 
 
 class DynamicDecisionNetwork(DecisionNetwork):
@@ -11,7 +11,9 @@ class DynamicDecisionNetwork(DecisionNetwork):
     These dynamic decision networks can model POMDPs.
     """
     
-    def __init__(self, discount: float):
+    # TODO: Add current state of environment (the agent does not know it, but it is needed for sampling observations)
+    
+    def __init__(self, discount: float = 1.0):
         super().__init__()
         self.discount = discount
         self.time: int = None
@@ -44,13 +46,17 @@ class DynamicDecisionNetwork(DecisionNetwork):
         self.node_queue = [(n, t+1) for (n, t) in self.node_queue]
         self.time += 1
         
-    def get_observation_sample(self, actions: dict[Id, Value]) -> dict[Id, Value]:
+    def sample_observation(self, actions: dict[Id, Value]) -> dict[Id, Value]:
+        # TODO: check if actions dict is correct
+        
         query = self.get_nodes_by_type(self.observation_type)
-        sample = self.query(query, actions, n_samples=1).to_dict(orient="list")
+        sample = self.query(query, actions, n_samples=1)[query].to_dict(orient="list")
         sample = {k: v.pop() for k, v in sample.items()}
         return sample
     
     def belief_update(self, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100):
+        # TODO: check if actions and observations dict are correct
+        
         # Get root state nodes
         key = lambda _, node: (node.get_type() == self.state_type) and (node.get_time() == self.get_time())
         query = self.get_nodes_by_key(key)
@@ -59,5 +65,12 @@ class DynamicDecisionNetwork(DecisionNetwork):
         next_belief = self.query(query, {**actions, **observations}, n_samples)
         
         # Change CPT for each root state node
-        # for nid in query:
-            # Construct CPT by summing over other state variables
+        for nid in query:
+            # Get columns to keep in node CPT
+            nid_query = list(self.get_node(nid).get_pt().columns)
+            
+            # Construct CPT by summing over other variables
+            b_ = next_belief.groupby(nid_query).sum().reset_index()
+            
+            # Change cpt of node
+            self.get_node(nid).add_pt(b_)

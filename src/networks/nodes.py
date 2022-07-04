@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import Union, Hashable, Any
 import pandas as pd
 import numpy as np
 
 # Defining types
 Id = str | tuple[str, int]
+Value = float | int
 
 
 # FIXME: This code assumes the PT's column name for the probability column is "Prob".
@@ -15,12 +15,11 @@ class DiscreteNode:
     # TODO: change value space definition to be a set instead of a list.
     """
 
-    def __init__(self, node_id: Id, node_type: str, value_space: list[float], pt: pd.DataFrame = None, attributes: dict = None):
+    def __init__(self, node_id: Id, node_type: str, value_space: list[Value], pt: pd.DataFrame = None):
         self.id = node_id
         self.type = node_type
         self.value_space = value_space
         self.pt = pt
-        self.attributes = {} if attributes is None else attributes
 
     def get_id(self) -> Id:
         return self.id
@@ -38,19 +37,10 @@ class DiscreteNode:
     def get_type(self) -> str:
         return self.type
 
-    def get_value_space(self) -> list[float]:
+    def get_value_space(self) -> list[Value]:
         return self.value_space
-    
-    def get_attributes(self) -> dict:
-        return self.attributes
-    
-    def remove_attribute(self, attribute: Hashable) -> Any:
-        return self.attributes.pop(attribute)
-    
-    def add_attribute(self, attribute: Hashable, value: Any):
-        self.attributes[attribute] = value
 
-    def add_pt(self, pt: dict[Id, list[int]]):
+    def add_pt(self, pt: dict[Id, list[Value]]):
         self.pt = pd.DataFrame(pt)
         
     def rename_pt_column(self, old_col: Id, new_col: Id):
@@ -58,7 +48,7 @@ class DiscreteNode:
             self.pt.rename(columns={old_col: new_col})
     
     def change_id(self, node_id: Id):
-        self.rename_pt_column(self.id, node_id)
+        self.rename_pt_column(self.id, node_id, inplace=True)
         self.id = node_id
         
     def increase_time(self):
@@ -73,12 +63,12 @@ class DiscreteNode:
             columns = {c: col_rename(c) for c in self.pt}
             self.pt.rename(columns=columns, inplace=True)
         
-    def fix_value(self, value: int):
+    def fix_value(self, value: Value):
         values = self.get_value_space()
         probs = [int(value==i) for i in range(len(values))]
         self.pt = pd.DataFrame({self.get_id(): values, "Prob": probs})
 
-    def get_sample(self, sample: dict[Id, int]) -> int:
+    def get_sample(self, sample: dict[Id, Value]) -> Value:
         """
         Samples this node via the direct sampling algorithm
         given previous acquired samples (of parent nodes).

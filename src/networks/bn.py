@@ -1,6 +1,6 @@
 from __future__ import annotations
 from src.networks.nodes import DiscreteNode
-from typing import Hashable, Any, Callable
+from typing import Callable
 import networkx as nx
 import pandas as pd
 
@@ -11,7 +11,8 @@ Edge = tuple[Id, Id]
 
 class BayesianNetwork:
     """
-    A class for a Bayesian Network.
+    A class for a discrete random variable Bayesian network.
+    It leverages the DiscreteNode class and implements rejection sampling for inference.
     """
 
     def __init__(self):
@@ -105,9 +106,6 @@ class BayesianNetwork:
     def add_pt(self, node_id: Id, pt: pd.DataFrame):
         self.node_dict[node_id].add_pt(pt)
         
-    def add_attribute(self, node_id: Id, attribute: Hashable, value: Any):
-        self.node_dict[node_id].add_attribute(attribute, value)
-        
     def fix_value(self, node_id: Id, value: int):
         self.node_dict[node_id].fix_value(value)
 
@@ -154,6 +152,8 @@ class BayesianNetwork:
 
         Return (pd.Dataframe): a dataframe that represents the inferred posterior distribution.
         """
+        
+        # TODO: Let this method accept DataFrames as evidence (for belief-state)
         
         # Initialize evidence as empty dict if it is None
         evidence = {} if evidence is None else evidence
