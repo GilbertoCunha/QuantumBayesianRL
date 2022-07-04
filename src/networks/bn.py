@@ -24,8 +24,6 @@ class BayesianNetwork:
         # The node queue lists the topological ordering of the nodes, for inference traversal
         self.node_queue: list[Id] = None
         
-        self.time: int = None
-        
     def get_node_queue(self) -> list[Id]:
         return self.node_queue
     
@@ -34,18 +32,14 @@ class BayesianNetwork:
     
     def get_graph(self) -> dict[Id, list[Id]]:
         return self.graph
-    
-    def get_time(self) -> int:
-        if self.time is None:
-            r = min([self.get_node(nid).get_time() for nid in self.get_nodes()])
-        else:
-            r = self.time
-        return r
 
     def draw(self):
-        # Create a networkx directed graph and add edges to it
+        # Create a networkx directed graph
         G = nx.DiGraph(directed=True)
-        G.add_edges_from(self.get_edges())
+        
+        # Convert edges into strings and add them to the graph
+        edges = list(map(lambda x: (str(x[0]), str(x[1])), self.get_edges()))
+        G.add_edges_from(edges)
         pos = nx.nx_pydot.graphviz_layout(G, prog="dot")
         
         # Define options for networkx draw method
@@ -92,20 +86,6 @@ class BayesianNetwork:
 
     def initialize(self):
         self.node_queue = self.gen_node_queue()
-        self.time = self.get_time()
-        
-    def increase_time(self):
-        # TODO: throw exception when id type is not tuple
-        
-        # Iterate nodes in reverse order (due to time-step increase for no key collisions)
-        for n, t in self.node_queue[::-1]:
-            self.node_map[(n, t)].increase_time()
-            self.node_map[(n, t+1)] = self.node_map[(n, t)].pop()
-            self.graph[(n, t+1)] = [(n_, t_+1) for (n_, t_) in self.graph[(n, t)]]
-        
-        # Change node queue
-        self.node_queue = [(n, t+1) for (n, t) in self.node_queue]
-        self.time += 1
         
     def get_node(self, nid: Id):
         return self.node_dict[nid]
@@ -127,20 +107,6 @@ class BayesianNetwork:
         
     def add_attribute(self, node_id: Id, attribute: Hashable, value: Any):
         self.node_dict[node_id].add_attribute(attribute, value)
-        
-    def change_id(self, old_id: Id, new_id: Id):
-        f = lambda x: new_id if x == new_id else x
-        for key in self.graph:
-            self.graph[key] = list(map(f, self.graph[key]))
-        self.graph[new_id] = self.graph.pop(old_id)
-        self.node_dict[new_id] = self.node_dict.pop(old_id)
-        self.node_dict[new_id].change_id(new_id)
-        self.node_queue = list(map(f, self.node_queue)) if self.node_queue is not None else None
-        
-    def change_ids(self, id_dict: dict[Id, Id]):
-        for key in id_dict:
-            if key in self.node_dict:
-                self.node_dict[id_dict[key]] = self.node_dict.pop(key)
         
     def fix_value(self, node_id: Id, value: int):
         self.node_dict[node_id].fix_value(value)

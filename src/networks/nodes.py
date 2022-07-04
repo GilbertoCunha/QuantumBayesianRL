@@ -69,8 +69,9 @@ class DiscreteNode:
         
         # Change pt columns
         if self.pt is not None:
-            columns = {(n, t): (n, t+1) for (n, t) in self.pt}
-            self.pt.rename(columns=columns)
+            col_rename = lambda c: (c[0], c[1]+1) if isinstance(c, tuple) else c
+            columns = {c: col_rename(c) for c in self.pt}
+            self.pt.rename(columns=columns, inplace=True)
         
     def fix_value(self, value: int):
         values = self.get_value_space()

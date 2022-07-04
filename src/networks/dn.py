@@ -9,15 +9,22 @@ Id = str | tuple[str, int]
 
 class DecisionNetwork(BayesianNetwork):
     """Extends the Bayesian network class to create a Decision network.
-    Decision networks typically have action, evidence, and utility nodes (which can be defined using the node_type attribute of the DiscreteNode class).
-    They augment the Bayesian network class by allowing the extraction of a near-optimal action via the query_decision method.
-    This near-optimal action should maximize (or be close to) the expected utility.
+    Decision networks typically have action, evidence, and utility nodes 
+    (which can be defined using the node_type attribute of the DiscreteNode class).
     """
-    
     action_type: str = "action"
     state_type: str = "state"
     observation_type: str = "observation"
     reward_type: str = "reward"
+
+
+class StaticDecisionNetwork(DecisionNetwork):
+    """
+    Augments the Decision network class by allowing the extraction of a near-optimal 
+    action via the query_decision method.
+    It should be used for static decision making.
+    This near-optimal action should maximize (or be close to) the expected utility.
+    """
     
     def query_decision(self, query: list[Id], evidence: dict[Id, int] = None, n_samples: int = 1000, verbose: bool = False) -> dict[Id, int]:
         """Selects a near-optimal action using the Bayesian network class's inference methods.
