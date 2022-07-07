@@ -1,9 +1,13 @@
 from __future__ import annotations
 from src.networks.dn import DecisionNetwork
+import pandas as pd
 
 # Define types
 Id = tuple[str, int] # Id's must be tuple for a Dynamic Decision Network
 Value = int | float
+SpaceElement = dict[Id, Value]
+Space = list[SpaceElement]
+BeliefState = dict[Id, pd.DataFrame]
 
 
 class DynamicDecisionNetwork(DecisionNetwork):
@@ -27,6 +31,23 @@ class DynamicDecisionNetwork(DecisionNetwork):
         else:
             r = self.time
         return r
+    
+    def get_space(self, node_type: str) -> Space:
+        r = {}
+        nodes = self.get_nodes_by_type(node_type)
+        for node in nodes:
+            r[node] = self.get_node(node).get_value_space()
+        return r
+    
+    def get_belief_state(self) -> BeliefState:
+        r = {}
+        for node in self.get_root_state_nodes():
+            r[node] = self.get_node(node).get_pt()
+        return r
+    
+    def get_root_state_nodes(self) -> list[Id]:
+        key = lambda _, node: (node.get_type() == self.state_type) and (node.get_time() == self.get_time())
+        return self.get_nodes_by_key(key)
     
     def initialize(self):
         super().initialize()
@@ -54,17 +75,17 @@ class DynamicDecisionNetwork(DecisionNetwork):
         sample = {k: v.pop() for k, v in sample.items()}
         return sample
     
-    def belief_update(self, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100):
+    def belief_update(self, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100, inplace: bool = False):
         # TODO: check if actions and observations dict are correct
         
         # Get root state nodes
-        key = lambda _, node: (node.get_type() == self.state_type) and (node.get_time() == self.get_time())
-        query = self.get_nodes_by_key(key)
+        query = self.get_root_state_nodes()
         
         # Query the next belief-state
         next_belief = self.query(query, {**actions, **observations}, n_samples)
         
         # Change CPT for each root state node
+        r = {}
         for nid in query:
             # Get columns to keep in node CPT
             nid_query = list(self.get_node(nid).get_pt().columns)
@@ -73,4 +94,10 @@ class DynamicDecisionNetwork(DecisionNetwork):
             b_ = next_belief.groupby(nid_query).sum().reset_index()
             
             # Change cpt of node
-            self.get_node(nid).add_pt(b_)
+            if inplace:
+                self.get_node(nid).add_pt(b_)
+            else:
+                r[nid] = b_
+                
+        if not inplace:
+            return r
