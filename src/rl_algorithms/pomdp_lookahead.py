@@ -1,6 +1,6 @@
 from __future__ import annotations
 from src.networks.ddn import DynamicDecisionNetwork as DDN
-from src.utils import product_dict
+from src.utils import product_dict, belief_update
 from src.trees.tree import Tree
 import pandas as pd
 
@@ -62,7 +62,7 @@ def calculate_q_values(ddn: DDN, tree: Tree, belief_state: dict[Id, pd.DataFrame
             # Iterate every children observation node
             for child in tree.get_children():
                 prob = 0.2 # TODO: calculate probability properly
-                new_belief = ddn.belief_update(tree.get_attribute("action"), child.get_attribute("observation"), n_samples)
+                new_belief = belief_update(ddn, tree.get_attribute("action"), child.get_attribute("observation"), n_samples)
                 value = calculate_q_values(ddn, child, new_belief, n_samples)
                 r += ddn.get_discount() * prob * value
            

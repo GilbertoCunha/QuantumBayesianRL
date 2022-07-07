@@ -1,5 +1,6 @@
 from __future__ import annotations
 from src.networks.dn import DecisionNetwork
+from src.utils import belief_update
 import pandas as pd
 
 # Define types
@@ -75,29 +76,12 @@ class DynamicDecisionNetwork(DecisionNetwork):
         sample = {k: v.pop() for k, v in sample.items()}
         return sample
     
-    def belief_update(self, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100, inplace: bool = False):
+    def belief_update(self, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100):
         # TODO: check if actions and observations dict are correct
         
-        # Get root state nodes
-        query = self.get_root_state_nodes()
+        # Get new belief-state
+        new_belief = belief_update(self, actions, observations, n_samples)
         
-        # Query the next belief-state
-        next_belief = self.query(query, {**actions, **observations}, n_samples)
-        
-        # Change CPT for each root state node
-        r = {}
-        for nid in query:
-            # Get columns to keep in node CPT
-            nid_query = list(self.get_node(nid).get_pt().columns)
-            
-            # Construct CPT by summing over other variables
-            b_ = next_belief.groupby(nid_query).sum().reset_index()
-            
-            # Change cpt of node
-            if inplace:
-                self.get_node(nid).add_pt(b_)
-            else:
-                r[nid] = b_
-                
-        if not inplace:
-            return r
+        # Update CPTs for the new-belief
+        for node in new_belief:
+            self.get_node(node).add_pt(new_belief[node])
