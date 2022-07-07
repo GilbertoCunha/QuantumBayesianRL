@@ -1,12 +1,15 @@
 from __future__ import annotations
 from src.networks.nodes import DiscreteNode
-from typing import Callable
+from typing import Callable, Union
 import networkx as nx
 import pandas as pd
 
 # Defining types
 Id = str | tuple[str, int]
 Edge = tuple[Id, Id]
+Value = int | float
+Evidence = Union[Value, pd.DataFrame]
+ProbTable = Union[dict[Id, list[Value]], pd.DataFrame]
 
 
 class BayesianNetwork:
@@ -115,7 +118,7 @@ class BayesianNetwork:
     def is_root(self, node_id: Id) -> bool:
         return len(self.get_parents(node_id)) == 0
 
-    def add_pt(self, node_id: Id, pt: dict[Id, Id]):
+    def add_pt(self, node_id: Id, pt: ProbTable):
         self.node_dict[node_id].add_pt(pt)
 
     def get_nodes_by_type(self, node_type: str) -> list[Id]:
@@ -141,7 +144,7 @@ class BayesianNetwork:
             
         return sample
 
-    def query(self, query: list[str], evidence: dict[Id, int] = None, n_samples: int = 100) -> pd.DataFrame:
+    def query(self, query: list[Id], evidence: dict[Id, Evidence] = None, n_samples: int = 100) -> pd.DataFrame:
         """
         Applies the rejection sampling algorithm to approximate any probability distribution.
 
@@ -154,6 +157,7 @@ class BayesianNetwork:
         """
         
         # TODO: Let this method accept DataFrames as evidence (for belief-state)
+        # TODO: Check that every evidence DataFrame is in a root node
         
         # Initialize evidence as empty dict if it is None
         evidence = {} if evidence is None else evidence
@@ -165,7 +169,10 @@ class BayesianNetwork:
         root_nodes = [n for n in self.get_nodes() if (self.is_root(n) and n in evidence)]
         backup_pts = {r: self.get_pt(r) for r in root_nodes}
         for r in root_nodes:
-            self.fix_value(r, evidence[r])
+            if isinstance(evidence[r], pd.DataFrame):
+                self.add_pt(r, evidence[r])
+            else:
+                self.fix_value(r, evidence[r])
 
         # Create multiple samples
         num_samples = 0
