@@ -45,10 +45,10 @@ class DiscreteNode:
         
     def rename_pt_column(self, old_col: Id, new_col: Id):
         if self.pt is not None:
-            self.pt.rename(columns={old_col: new_col})
+            self.pt.rename(columns={old_col: new_col}, inplace=True)
     
     def change_id(self, node_id: Id):
-        self.rename_pt_column(self.id, node_id, inplace=True)
+        self.rename_pt_column(self.id, node_id)
         self.id = node_id
         
     def increase_time(self):

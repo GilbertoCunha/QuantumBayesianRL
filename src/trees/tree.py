@@ -7,23 +7,16 @@ Value = float
 
 class Tree:
     
-    def __init__(self, value: Value, attributes: dict = None):
-        self.value = value
+    def __init__(self, attributes: dict = None):
         self.attributes = {} if attributes is None else attributes
         self.children: list[Tree] = []
         self.parent: Tree = None
-        
-    def get_value(self) -> Value:
-        return self.value
     
     def get_children(self) -> list[Tree]:
         return self.children
         
     def get_attribute(self, attribute: Hashable) -> Any:
         return self.attributes[attribute]
-        
-    def add_value(self, value: Value):
-        self.value = value
         
     def add_attribute(self, attribute: Hashable, value: Any):
         self.attributes[attribute] = value

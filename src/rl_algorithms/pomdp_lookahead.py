@@ -14,8 +14,7 @@ BeliefState = dict[Id, pd.DataFrame]
 
 def build_tree_aux(action: SpaceElement, action_space: Space, observation_space: Space, horizon: int) -> Tree:
     # Initialize tree
-    r = Tree(None)
-    r.add_attributes({"type": "action", "action": action})
+    r = Tree({"type": "action", "action": action})
     
     # Create subtrees
     if horizon > 0:
@@ -28,8 +27,7 @@ def build_tree_aux(action: SpaceElement, action_space: Space, observation_space:
 def build_tree(observation: SpaceElement, action_space: Space, observation_space: Space, horizon: int) -> Tree:
     # FIXME: be careful with the time in the node ids for both the observations and actions
     # Initialize tree
-    r = Tree(None)
-    r.add_attributes({"type": "observation", "observation": observation})
+    r = Tree({"type": "observation", "observation": observation})
     
     # Create subtrees
     for action in product_dict(action_space):
@@ -41,8 +39,9 @@ def build_tree(observation: SpaceElement, action_space: Space, observation_space
 def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> Value:
     # TODO: Make sure tree is an action node
     # Create evidence and perform query
+    action = tree.get_attribute("action")
     reward_node = ddn.get_nodes_by_type(DDN.reward_type)[0] # TODO: Make sure only one reward node exists
-    evidence = {**belief_state, **tree.get_attribute("action")}
+    evidence = {**belief_state, **action}
     reward_df = ddn.query([reward_node], evidence, n_samples)
     
     # Increase value by expected reward
@@ -60,17 +59,16 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
             observation = child.get_attribute("observation")
             prob = df_dict_filter(observation_df, observation)
             prob = float(prob["Prob"]) if len(prob) > 0 else 0.0
-            print("Calculated prob")
+            # print("Calculated prob")
             
             # Recursive q-value calculation
-            action = tree.get_attribute("action")
-            new_belief = belief_update(ddn, action, observation, n_samples)
+            new_belief = belief_update(ddn, belief_state, action, observation, n_samples)
             value = max([q_value(ddn, c, new_belief, n_samples) for c in child.get_children()])
-            print("Calculated recursive value.")
+            # print("Calculated recursive value.")
             
             # Increase q-value
             r += ddn.get_discount() * prob * value
-    print("Finished executing.")
+    # print("Finished executing.")
         
     return r
 

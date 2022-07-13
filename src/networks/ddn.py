@@ -80,7 +80,7 @@ class DynamicDecisionNetwork(DecisionNetwork):
         # TODO: check if actions and observations dict are correct
         
         # Get new belief-state
-        new_belief = belief_update(self, actions, observations, n_samples)
+        new_belief = belief_update(self, self.get_belief_state(), actions, observations, n_samples)
         
         # Update CPTs for the new-belief
         for node in new_belief:
