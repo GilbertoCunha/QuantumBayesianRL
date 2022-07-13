@@ -1,6 +1,6 @@
 from __future__ import annotations
 from src.networks.ddn import DynamicDecisionNetwork as DDN
-from src.utils import product_dict, belief_update
+from src.utils import product_dict, belief_update, df_dict_filter
 from src.trees.tree import Tree
 import pandas as pd
 
@@ -9,6 +9,7 @@ Id = tuple[str, int]
 Value = int | float
 SpaceElement = dict[Id, Value]
 Space = dict[Id, list[Value]]
+BeliefState = dict[Id, pd.DataFrame]
 
 
 def build_tree_aux(action: SpaceElement, action_space: Space, observation_space: Space, horizon: int) -> Tree:
@@ -18,55 +19,74 @@ def build_tree_aux(action: SpaceElement, action_space: Space, observation_space:
     
     # Create subtrees
     if horizon > 0:
-        for observation in product_dict(**observation_space):
+        for observation in product_dict(observation_space):
             r.add_child(build_tree(observation, action_space, observation_space, horizon))
             
     return r
         
 
 def build_tree(observation: SpaceElement, action_space: Space, observation_space: Space, horizon: int) -> Tree:
+    # FIXME: be careful with the time in the node ids for both the observations and actions
     # Initialize tree
     r = Tree(None)
     r.add_attributes({"type": "observation", "observation": observation})
     
     # Create subtrees
-    for action in product_dict(**action_space):
+    for action in product_dict(action_space):
         r.add_child(build_tree_aux(action, action_space, observation_space, horizon-1))
             
     return r
 
 
-def calculate_q_values(ddn: DDN, tree: Tree, belief_state: dict[Id, pd.DataFrame], n_samples: int) -> Value:
-    r = 0
+def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> Value:
+    # TODO: Make sure tree is an action node
+    # Create evidence and perform query
+    reward_node = ddn.get_nodes_by_type(DDN.reward_type)[0] # TODO: Make sure only one reward node exists
+    evidence = {**belief_state, **tree.get_attribute("action")}
+    reward_df = ddn.query([reward_node], evidence, n_samples)
     
-    # In case of an action node
-    if tree.get_attribute("type") == "action":
-        # Get reward, action and root state nodes
-        root_state_nodes = ddn.get_root_state_nodes()
-        action_nodes = ddn.get_nodes_by_type(DDN.action_type)
-        reward_node = ddn.get_nodes_by_type(DDN.reward_type)[0] # TODO: Make sure only one reward node
+    # Increase value by expected reward
+    r = (reward_df[reward_node] * reward_df["Prob"]).sum()
+    
+    # Increase value due to children nodes
+    if len(tree.get_children()) > 0:
+        # Calculate observation distribution
+        observation_nodes = ddn.get_nodes_by_type(DDN.observation_type)
+        observation_df = ddn.query(observation_nodes, evidence, n_samples)
         
-        # Create evidence and perform query
-        evidence = {root_state_nodes: belief_state, action_nodes: tree.get_attribute("action")}
-        reward_df = ddn.query(query=[reward_node], evidence=evidence, n_samples=n_samples)
-        
-        # Increase value by expected reward
-        r += (reward_df[reward_node] * reward_df["Prob"]).sum()
-        
-        # Increase value due to children nodes
-        if len(tree.get_children()) > 0:
-            # Calculate observation distribution
-            observation_nodes = ddn.get_nodes_by_type(DDN.observation_type)
-            observation_df = ddn.query(query=observation_nodes, evidence=evidence, n_samples=n_samples)
+        # Iterate every children observation node
+        for child in tree.get_children():
+            # Calculate probability of observation
+            observation = child.get_attribute("observation")
+            prob = df_dict_filter(observation_df, observation)
+            prob = float(prob["Prob"]) if len(prob) > 0 else 0.0
+            print("Calculated prob")
             
-            # Iterate every children observation node
-            for child in tree.get_children():
-                prob = 0.2 # TODO: calculate probability properly
-                new_belief = belief_update(ddn, tree.get_attribute("action"), child.get_attribute("observation"), n_samples)
-                value = calculate_q_values(ddn, child, new_belief, n_samples)
-                r += ddn.get_discount() * prob * value
-           
-    else: # This else assumes that tree.attributes["type"] == "observation"
-        r = max([calculate_q_values(ddn, child, belief_state, n_samples) for child in tree.get_children()])
+            # Recursive q-value calculation
+            action = tree.get_attribute("action")
+            new_belief = belief_update(ddn, action, observation, n_samples)
+            value = max([q_value(ddn, c, new_belief, n_samples) for c in child.get_children()])
+            print("Calculated recursive value.")
+            
+            # Increase q-value
+            r += ddn.get_discount() * prob * value
+    print("Finished executing.")
         
+    return r
+
+
+def lookahead_policy(ddn: DDN, tree: Tree, n_samples: int) -> dict[Id, Value]:
+    r = None
+    best_q = float("-inf")
+    
+    # Iterate every action node in tree
+    for child in tree.get_children():
+        action = child.get_attribute("action")
+        q = q_value(ddn, child, ddn.get_belief_state(), n_samples)
+        
+        # Replace best action
+        if q > best_q:
+            best_q = q
+            r = action
+            
     return r

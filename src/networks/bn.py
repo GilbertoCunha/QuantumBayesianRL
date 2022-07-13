@@ -156,8 +156,7 @@ class BayesianNetwork:
         Return (pd.Dataframe): a dataframe that represents the inferred posterior distribution.
         """
         
-        # TODO: Let this method accept DataFrames as evidence (for belief-state)
-        # TODO: Check that every evidence DataFrame is in a root node
+        # TODO: throw error when evidence DataFrame is not a root node
         
         # Initialize evidence as empty dict if it is None
         evidence = {} if evidence is None else evidence
@@ -171,6 +170,7 @@ class BayesianNetwork:
         for r in root_nodes:
             if isinstance(evidence[r], pd.DataFrame):
                 self.add_pt(r, evidence[r])
+                evidence.pop(r)
             else:
                 self.fix_value(r, evidence[r])
 

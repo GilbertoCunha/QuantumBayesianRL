@@ -69,9 +69,9 @@ class TestBayesianNetwork(unittest.TestCase):
         self.bn.initialize()
 
         # Query the probability table
-        a_query = self.bn.query(["a"])
-        b_query = self.bn.query(["b"])
-        c_query = self.bn.query(["c"])
+        a_query = self.bn.query(["a"], n_samples=100)
+        b_query = self.bn.query(["b"], n_samples=100)
+        c_query = self.bn.query(["c"], n_samples=100)
 
         # Get pt from the network
         a_pt = self.bn.get_pt("a")
@@ -84,6 +84,15 @@ class TestBayesianNetwork(unittest.TestCase):
         assert_almost_equal(a_query.to_numpy(), a_pt.to_numpy(), decimal=1)
         assert_almost_equal(b_query.to_numpy(), b_pt.to_numpy(), decimal=1)
         assert_almost_equal(c_query.to_numpy(), c_pt.to_numpy(), decimal=1)
+        
+        # Verify DataFrame queries
+        a_df = pd.DataFrame({"a": [0, 1], "Prob": [0.3, 0.7]})
+        query = self.bn.query(["b"], evidence={"a": a_df}, n_samples=100)
+        query_ = self.bn.query(["b"], evidence={"a": 0}, n_samples=100)
+        query_aux = self.bn.query(["b"], evidence={"a": 1}, n_samples=100)
+        query_["Prob"] = (0.3 * query_["Prob"] + 0.7 * query_aux["Prob"])
+        query_["Prob"] /= query_["Prob"].sum()
+        assert_almost_equal(query.to_numpy(), query_.to_numpy(), decimal=1)
 
 
 if __name__ == '__main__':

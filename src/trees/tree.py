@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Hashable, Any
+import networkx as nx
 
 Value = float
 
@@ -9,7 +10,7 @@ class Tree:
     def __init__(self, value: Value, attributes: dict = None):
         self.value = value
         self.attributes = {} if attributes is None else attributes
-        self.children: list[Tree] = None
+        self.children: list[Tree] = []
         self.parent: Tree = None
         
     def get_value(self) -> Value:
@@ -28,18 +29,12 @@ class Tree:
         self.attributes[attribute] = value
         
     def add_attributes(self, attributes: dict):
-        for attribute in self.attributes:
+        for attribute in attributes:
             self.add_attribute(attribute, attributes[attribute])
         
     def add_child(self, child: Tree):
-        self.children = [] if self.children is None else self.children
         self.children.append(child)
-        child.add_parent(self)
-        
-    def add_parent(self, parent: Tree):
-        parent.children = [] if parent.children is None else parent.children
-        parent.children.append(self)
-        self.parent = parent
+        child.parent = self
             
     def get_depth(self) -> int:
         depth = 0
