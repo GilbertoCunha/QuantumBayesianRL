@@ -59,16 +59,13 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
             observation = child.get_attribute("observation")
             prob = df_dict_filter(observation_df, observation)
             prob = float(prob["Prob"]) if len(prob) > 0 else 0.0
-            # print("Calculated prob")
             
             # Recursive q-value calculation
             new_belief = belief_update(ddn, belief_state, action, observation, n_samples)
             value = max([q_value(ddn, c, new_belief, n_samples) for c in child.get_children()])
-            # print("Calculated recursive value.")
             
             # Increase q-value
             r += ddn.get_discount() * prob * value
-    # print("Finished executing.")
         
     return r
 
