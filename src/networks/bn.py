@@ -5,9 +5,9 @@ import networkx as nx
 import pandas as pd
 
 # Defining types
-Id = str | tuple[str, int]
+Id = Union[str, tuple[str, int]]
 Edge = tuple[Id, Id]
-Value = int | float
+Value = Union[int, float]
 Evidence = Union[Value, pd.DataFrame]
 ProbTable = Union[dict[Id, list[Value]], pd.DataFrame]
 

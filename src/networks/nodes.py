@@ -1,10 +1,11 @@
 from __future__ import annotations
+from typing import Union
 import pandas as pd
 import numpy as np
 
 # Defining types
-Id = str | tuple[str, int]
-Value = float | int
+Id = Union[str, tuple[str, int]]
+Value = Union[float, int]
 
 
 # FIXME: This code assumes the PT's column name for the probability column is "Prob".

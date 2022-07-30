@@ -1,10 +1,11 @@
 from __future__ import annotations
 from itertools import product
+from typing import Union
 import pandas as pd
 
 # Types
 Id = tuple[str, int]
-Value = int | float
+Value = Union[int, float]
 BeliefState = dict[Id, pd.DataFrame]
 DDN = "DynamicDecisionNetwork"
 

@@ -1,11 +1,12 @@
 from __future__ import annotations
 from src.networks.dn import DecisionNetwork
 from src.utils import belief_update
+from typing import Union
 import pandas as pd
 
 # Define types
 Id = tuple[str, int] # Id's must be tuple for a Dynamic Decision Network
-Value = int | float
+Value = Union[int, float]
 SpaceElement = dict[Id, Value]
 Space = list[SpaceElement]
 BeliefState = dict[Id, pd.DataFrame]

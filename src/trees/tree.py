@@ -1,8 +1,5 @@
 from __future__ import annotations
 from typing import Hashable, Any
-import networkx as nx
-
-Value = float
 
 
 class Tree:

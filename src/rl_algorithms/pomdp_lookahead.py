@@ -2,11 +2,12 @@ from __future__ import annotations
 from src.networks.ddn import DynamicDecisionNetwork as DDN
 from src.utils import product_dict, belief_update, df_dict_filter
 from src.trees.tree import Tree
+from typing import Union
 import pandas as pd
 
 # Types
 Id = tuple[str, int]
-Value = int | float
+Value = Union[int, float]
 SpaceElement = dict[Id, Value]
 Space = dict[Id, list[Value]]
 BeliefState = dict[Id, pd.DataFrame]
@@ -70,7 +71,7 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
     return r
 
 
-def lookahead_policy(ddn: DDN, tree: Tree, n_samples: int) -> dict[Id, Value]:
+def pomdp_lookahead(ddn: DDN, tree: Tree, n_samples: int) -> dict[Id, Value]:
     r = None
     best_q = float("-inf")
     
