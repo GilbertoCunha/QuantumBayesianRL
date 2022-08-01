@@ -1,11 +1,12 @@
 from __future__ import annotations
 from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit
+from src.utils import df_binary_str_filter, product_dict
 from src.networks.bn import BayesianNetwork as BN
 from qiskit.providers.aer import QasmSimulator
-from src.utils import df_binary_str_filter
 from math import log, ceil
 from typing import Union
 import pandas as pd
+import numpy as np
 
 # Define the types
 Id = tuple[str, int]
@@ -72,9 +73,76 @@ class QuantumBayesianNetwork(BN):
             df = df_binary_str_filter(df, nid, id_values[nid], value_space)
         
         return df["Prob"].sum()
+    
+    def recursive_rotation(self, qubits: list[int], parent_values: dict[int, int], nid: Id) -> QuantumCircuit:
+        circ = QuantumCircuit(self.qr)
+        
+        # Select current qubit
+        q = qubits[0]
+        
+        # Calculate probabilities
+        angle = lambda p1, p0: np.pi if (p0 == 0) else 2 * np.arctan(np.sqrt(p1 / p0))
+        parents_0 = {**{q: 0}, **parent_values}
+        p0 = self.qubits_prob(parents_0, nid)
+        parents_1 = {**{q: 1}, **parent_values}
+        p1 = self.qubits_prob(parents_1, nid)
+        theta = angle(p1, p0)
+        
+        # Apply rotation gate
+        if len(parent_values) == 0:
+            print(f"RY | Qubit: {q} | Theta: {theta}")
+            circ.ry(theta, self.qr[q])
+        else:
+            q_controls = [self.qr[i] for i in parent_values.keys()]
+            print(f"MCRY | Qubit: {q} | Parents: {parent_values} | Theta: {theta}")
+            circ.mcry(theta, q_controls, self.qr[q])
+        
+        if len(qubits[1::]) > 0:
+            # print("Got here")
+            # Recursive call to compose other rotations
+            circ.compose(self.recursive_rotation(qubits[1::], parents_1, nid), inplace=True)
+            
+            # Apply not gate
+            if len(parent_values) == 0:
+                # print(f"Enter X | Qubit: {q}")
+                circ.x(self.qr[q])
+            else:
+                # print(f"Enter MCX | Qubit: {q} | Controls: {parent_values.keys()}")
+                circ.mcx(q_controls, self.qr[q])
+                
+            # Recursive call to compose other rotations
+            circ.compose(self.recursive_rotation(qubits[1::], parents_0, nid), inplace=True)
+            
+            # Apply not gate
+            if len(parent_values) == 0:
+                # print(f"Exit X | Qubit: {q}")
+                circ.x(self.qr[q])
+            else:
+                # print(f"Exit MCX | Qubit: {q} | Controls: {parent_values.keys()}")
+                circ.mcx(q_controls, self.qr[q])
+        
+        return circ
         
     def encoding_circ(self) -> QuantumCircuit:
         circ = QuantumCircuit(self.qr)
+        
+        # Iterate every random variable
+        for nid in self.node_queue:
+            # Get parent and RV qubits
+            parents = [j for i in self.get_parents(nid) for j in self.rv_qubits[i]]
+            qubits = self.rv_qubits[nid]
+            
+            # Iterate all possible values of parents
+            parent_value_space = {q: [0, 1] for q in parents}
+            iterator = product_dict(parent_value_space) if len(parents) > 0 else [{}]
+            for parent_values in iterator:
+                unset_parents = [p for p in parent_values if parent_values[p]==0]
+                for p in unset_parents:
+                    circ.x(self.qr[p])
+                circ.compose(self.recursive_rotation(qubits, parent_values, nid), inplace=True)
+                for p in unset_parents:
+                    circ.x(self.qr[p])
+        
         return circ
     
     def grover_circ(self) -> QuantumCircuit:
