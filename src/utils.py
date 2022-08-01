@@ -10,11 +10,29 @@ BeliefState = dict[Id, pd.DataFrame]
 DDN = "DynamicDecisionNetwork"
 
 
-def product_dict(my_dict):
+def is_bit_value(number: int, index: int, value: int) -> bool:
+    """Checks if bit number `index` of binary representation of `number`
+    has value `value`
+    """
+    is_set = bool((number >> index) & 1)
+    return is_set if bool(value) else not is_set
+
+
+def are_bit_values(number: int, value_dict: dict[int, int]) -> bool:
+    return all([is_bit_value(number, k, v) for k, v in value_dict.items()])
+
+
+def product_dict(my_dict: dict):
     keys = my_dict.keys()
     values = my_dict.values()
     for instance in product(*values):
         yield dict(zip(keys, instance))
+        
+        
+def df_binary_str_filter(df: pd.DataFrame, col: str, bin_dict: dict[int, int], value_space: list[Value]) -> pd.DataFrame:
+    mask = lambda i: are_bit_values(value_space.index(df[col].iloc[i]), bin_dict)
+    indices = [i for i in range(len(df)) if mask(i)]
+    return df.iloc[indices]
         
 
 def df_dict_filter(df: pd.DataFrame, dict_filter: dict):

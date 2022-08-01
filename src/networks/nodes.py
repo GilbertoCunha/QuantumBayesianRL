@@ -52,6 +52,12 @@ class DiscreteNode:
         self.rename_pt_column(self.id, node_id)
         self.id = node_id
         
+    def value_to_str(self, value: Value) -> str:
+        r = None
+        if value in self.value_space:
+            r = bin(self.value_space.index(value))
+        return r
+        
     def increase_time(self):
         # TODO: exception when Id type does not match tuple
         # Change id

@@ -1,7 +1,8 @@
 from __future__ import annotations
 from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit
-from src.networks.ddn import DynamicDecisionNetwork as DDN
+from src.networks.bn import BayesianNetwork as BN
 from qiskit.providers.aer import QasmSimulator
+from src.utils import df_binary_str_filter
 from math import log, ceil
 from typing import Union
 import pandas as pd
@@ -11,7 +12,7 @@ Id = tuple[str, int]
 Value = Union[int, float]
 
 
-class QuantumDDN(DDN):
+class QuantumBayesianNetwork(BN):
     
     def initialize(self):
         # Initialize DDN parent class
@@ -40,6 +41,37 @@ class QuantumDDN(DDN):
             r[nid] = [counter + i for i in range(n_qubits)]
             counter += n_qubits
         return r
+    
+    def qubit_to_id(self, qubit: int) -> Id:
+        return [key for key in self.rv_qubits if qubit in self.rv_qubits[key]][0]
+    
+    def qubits_prob(self, qubit_values: dict[int, int], rv_id: Id) -> float:
+        """
+        Calculates the probability that qubits have certain values.
+        """
+        
+        # Dict of ids to qubit values dict
+        id_values = {}
+        for q, v in qubit_values.items():
+            # Get id of qubit
+            nid = self.qubit_to_id(q)
+            
+            # Select qubit position in binary representation
+            index = q - min(self.rv_qubits[nid])
+            
+            # Add to dict
+            if nid not in id_values:
+                id_values[nid] = {index: v}
+            else:
+                id_values[nid][index] = v
+        
+        # Filter dataframe entries to the qubit values
+        df = self.get_node(rv_id).get_pt()
+        for nid in id_values:
+            value_space = self.get_node(nid).get_value_space()
+            df = df_binary_str_filter(df, nid, id_values[nid], value_space)
+        
+        return df["Prob"].sum()
         
     def encoding_circ(self) -> QuantumCircuit:
         circ = QuantumCircuit(self.qr)
