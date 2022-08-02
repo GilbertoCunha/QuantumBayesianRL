@@ -29,6 +29,30 @@ def product_dict(my_dict: dict):
         yield dict(zip(keys, instance))
         
         
+def get_string_elems(s: str, indices: list[int]) -> str:
+    r = ""
+    for i in indices:
+        r += s[i]
+    return r
+        
+def counts_to_dict(key: str, value: int, indices_dict: dict[Id, list[int]]) -> dict[str, int]:
+    # TODO: Convert str_slice using the value space of each RV
+    
+    # Invert key (Qiskit is little endian)
+    key = key[::-1]
+    
+    # Create result dictionary
+    r = {}
+    for rv, indices in indices_dict.items():
+        str_slice = get_string_elems(key, indices)
+        r[rv] = int(str_slice, 2)
+        
+    # Add probability entry (non-normalized)
+    r["Prob"] = value
+    
+    return r
+        
+        
 def df_binary_str_filter(df: pd.DataFrame, col: str, bin_dict: dict[int, int], value_space: list[Value]) -> pd.DataFrame:
     mask = lambda i: are_bit_values(value_space.index(df[col].iloc[i]), bin_dict)
     indices = [i for i in range(len(df)) if mask(i)]

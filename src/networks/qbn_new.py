@@ -1,6 +1,6 @@
 from __future__ import annotations
 from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit
-from src.utils import df_binary_str_filter, product_dict
+from src.utils import df_binary_str_filter, product_dict, counts_to_dict
 from src.networks.bn import BayesianNetwork as BN
 from qiskit.providers.aer import QasmSimulator
 from math import log, ceil
@@ -90,11 +90,11 @@ class QuantumBayesianNetwork(BN):
         
         # Apply rotation gate
         if len(parent_values) == 0:
-            print(f"RY | Qubit: {q} | Theta: {theta}")
+            # print(f"RY | Qubit: {q} | Theta: {theta}")
             circ.ry(theta, self.qr[q])
         else:
             q_controls = [self.qr[i] for i in parent_values.keys()]
-            print(f"MCRY | Qubit: {q} | Parents: {parent_values} | Theta: {theta}")
+            # print(f"MCRY | Qubit: {q} | Parents: {parent_values} | Theta: {theta}")
             circ.mcry(theta, q_controls, self.qr[q])
         
         if len(qubits[1::]) > 0:
@@ -150,4 +150,41 @@ class QuantumBayesianNetwork(BN):
         return circ
     
     def query(self, query: list[Id], evidence: dict[Id, Value], n_samples: int) -> pd.DataFrame:
-        pass
+        # Get the list of qubits to query
+        query_qubits = sorted([j for nid in query for j in self.rv_qubits[nid]])
+        measure_qubits = [self.qr[q] for q in query_qubits]
+        
+        # Create classical register for the measurement and quantum circuit
+        cr = ClassicalRegister(len(query_qubits))
+        circ = QuantumCircuit(self.qr, cr)
+        
+        # Apply encoding
+        circ.compose(self.encoding_circ, inplace=True)
+        
+        # Perform measurement
+        circ.measure(measure_qubits, cr)
+        
+        # Create simulator, job and get results
+        simulator = QasmSimulator()
+        job = simulator.run(circ, shots=n_samples)
+        results = job.result().get_counts(circ)
+        
+        # Create dict of query rvs to measurement qubits
+        query_rv_qubits = {rv: [] for rv in query}
+        for i, q in enumerate(query_qubits):
+            rv = self.qubit_to_id(q)
+            query_rv_qubits[rv].append(i)
+        
+        # Convert counts dict
+        r = {k: [] for k in query}
+        r["Prob"] = []
+        for k, v in results.items():
+            entry = counts_to_dict(k, v, query_rv_qubits)
+            for k_, v_ in entry.items():
+                r[k_].append(v_)
+                
+        # Create df of results
+        df = pd.DataFrame(r)
+        df["Prob"] /= df["Prob"].sum()
+        
+        return df.sort_values(query).reset_index()
