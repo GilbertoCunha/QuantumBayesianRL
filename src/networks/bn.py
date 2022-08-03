@@ -197,6 +197,6 @@ class BayesianNetwork:
         sample_df = sample_df.value_counts(normalize=True).to_frame("Prob")
 
         # Group over query variables and sum over all other variables
-        sample_df = sample_df.groupby(query).sum().reset_index()
+        sample_df = sample_df.groupby(query).sum().sort_values(query).reset_index()
 
         return sample_df

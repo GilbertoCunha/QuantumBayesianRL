@@ -90,24 +90,19 @@ class QuantumBayesianNetwork(BN):
         
         # Apply rotation gate
         if len(parent_values) == 0:
-            # print(f"RY | Qubit: {q} | Theta: {theta}")
             circ.ry(theta, self.qr[q])
         else:
             q_controls = [self.qr[i] for i in parent_values.keys()]
-            # print(f"MCRY | Qubit: {q} | Parents: {parent_values} | Theta: {theta}")
             circ.mcry(theta, q_controls, self.qr[q])
         
         if len(qubits[1::]) > 0:
-            # print("Got here")
             # Recursive call to compose other rotations
             circ.compose(self.recursive_rotation(qubits[1::], parents_1, nid), inplace=True)
             
             # Apply not gate
             if len(parent_values) == 0:
-                # print(f"Enter X | Qubit: {q}")
                 circ.x(self.qr[q])
             else:
-                # print(f"Enter MCX | Qubit: {q} | Controls: {parent_values.keys()}")
                 circ.mcx(q_controls, self.qr[q])
                 
             # Recursive call to compose other rotations
@@ -115,10 +110,8 @@ class QuantumBayesianNetwork(BN):
             
             # Apply not gate
             if len(parent_values) == 0:
-                # print(f"Exit X | Qubit: {q}")
                 circ.x(self.qr[q])
             else:
-                # print(f"Exit MCX | Qubit: {q} | Controls: {parent_values.keys()}")
                 circ.mcx(q_controls, self.qr[q])
         
         return circ
@@ -186,5 +179,10 @@ class QuantumBayesianNetwork(BN):
         # Create df of results
         df = pd.DataFrame(r)
         df["Prob"] /= df["Prob"].sum()
+        df = df.sort_values(query).reset_index()
         
-        return df.sort_values(query).reset_index()
+        # Remove index column if it exists
+        if "index" in df:
+            df = df.drop("index", axis=1)
+        
+        return df

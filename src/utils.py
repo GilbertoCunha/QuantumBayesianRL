@@ -44,7 +44,8 @@ def counts_to_dict(key: str, value: int, indices_dict: dict[Id, list[int]]) -> d
     # Create result dictionary
     r = {}
     for rv, indices in indices_dict.items():
-        str_slice = get_string_elems(key, indices)
+        # Re-invert string to grab value for each rv
+        str_slice = get_string_elems(key, indices)[::-1]
         r[rv] = int(str_slice, 2)
         
     # Add probability entry (non-normalized)
