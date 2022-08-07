@@ -1,249 +1,297 @@
+from __future__ import annotations
+from src.utils import df_binary_str_filter, product_dict, get_string_elems
 from qiskit import ClassicalRegister, QuantumRegister, QuantumCircuit
+from src.networks.bn import BayesianNetwork as BN
 from qiskit.providers.aer import QasmSimulator
+from math import log, ceil
+from typing import Union
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
-import itertools
-import math
+
+# Define the types
+Id = tuple[str, int]
+Value = Union[int, float]
 
 
-class QuantumBayesianNetwork:
-
-    def __init__(self, bn):
+class QuantumBayesianNetwork(BN):
+    
+    def initialize(self):
+        # Initialize DDN parent class
+        super().initialize()
         
-        # Dictionary mapping qbit numbers to a list of qbit parents (numbers also)
-        self.parent_dict = {name: bn.get_parents(name) for name in bn.node_queue}
+        # Define Random Variable (DiscreteNode) to qubit dict
+        self.rv_qubits = self.get_rv_qubit_dict()
         
-        # Dictionary where keys are qubit numbers and values are lists of tuples
-        # First element of each tuple an the angle of rotation
-        # Second element is a dictionary that represents the state of the control qubits (1 if set, 0 if not)
-        self.ry_angles = self.get_ry_angles(bn)
+        # Define quantum register
+        n_qubits = sum([len(self.rv_qubits[key]) for key in self.rv_qubits])
+        self.qr = QuantumRegister(n_qubits)
         
-    def get_ry_angles(self, bn):
-        # Create result dictionary
-        r = {}
+        # Create quantum circuits for running the queries
+        self.encoding_circ = self.encoding_circ()
+        self.grover_diffuser = self.grover_diffuser()
         
-        # Define function to get the angle
-        angle = lambda p1, p0: np.pi if (p0 == 0) else 2 * np.arctan(np.sqrt(p1 / p0))
-        
-        # Iterate nodes of Bayesian Network
-        nodes = [n for n in bn.node_map]
-        for name in nodes:
+    def get_rv_qubit_dict(self) -> dict[Id, list[int]]:
+        # Iterate nodes (already in topological order)
+        counter, r = 0, {}
+        for nid in self.node_queue:
+            # Calculate number of qubits for the random variable
+            value_space = self.node_dict[nid].get_value_space()
+            n_qubits = ceil(log(len(value_space), 2))
             
-            # Get node, parents and CPT
-            node = bn.node_map[name]
-            parents = bn.get_parents(name)
-            pt = node.pt
-            
-            # Find all p1 and p0 probabilities 
-            # This is a list of (p1, p0) tuples
-            if len(parents) > 0:
-                ps = [(
-                    group[group[name]==1]["Prob"].iloc[0], 
-                    group[group[name]==0]["Prob"].iloc[0],
-                    dict(group[parents].iloc[0])
-                ) for _, group in pt.groupby(parents)]
-            else:
-                ps = [(pt[pt[name]==1]["Prob"].iloc[0], pt[pt[name]==0]["Prob"].iloc[0], {})]
-                
-            # Calculate list of rotations
-            r[name] = [(angle(p1, p0), states) for p1, p0, states in ps]
-                
+            # Add list of qubits to the random variable qubit dict
+            r[nid] = [counter + i for i in range(n_qubits)]
+            counter += n_qubits
         return r
     
-    def state_preparation(self, qr, names_to_qbits):
-        # Create quantum circuit
-        n_qubits = len(qr)
-        circuit = QuantumCircuit(qr)
-        
-        # Get the inverse dictionary
-        qbits_to_names = {v: k for k, v in names_to_qbits.items()}
-        
-        # Apply controlled rotation gates to every qubit
-        for i_name in self.parent_dict:
-            i = names_to_qbits[i_name]
-            
-            # Get all rotation angles and control qubits
-            angles = self.ry_angles[i_name]
-            q_controls = [qr[names_to_qbits[j_name]] for j_name in self.parent_dict[i_name]]
-            
-            # Iterate all rotations
-            for theta, states in angles:
-
-                # Apply a multiple controlled rotation gate
-                if len(q_controls) > 0:
-                    for name in states:
-                        if states[name] == 0:
-                            circuit.x(names_to_qbits[name])
-                    circuit.mcry(theta=theta, q_controls=q_controls, q_target=qr[i])
-                    for name in states:
-                        if states[name] == 0:
-                            circuit.x(names_to_qbits[name])
-                
-                # Apply a rotation gate
-                else:
-                    circuit.ry(theta, qr[i])
-            
-        return circuit
+    def qubit_to_id(self, qubit: int) -> Id:
+        return [key for key in self.rv_qubits if qubit in self.rv_qubits[key]][0]
     
-    @staticmethod
-    def grover_oracle(qr, evidence, names_to_qbits):
-        # Create quantum circuit
-        circuit = QuantumCircuit(qr)
+    def count_to_dict(self, key: str, value: int, indices_dict: dict[Id, list[int]]) -> dict[str, int]:
+        # TODO: Convert str_slice using the value space of each RV
         
-        # Iterate evidence values
-        for name, value in evidence.items():
-            # Get qubit number
-            i = names_to_qbits[name]
+        # Invert key (Qiskit is little endian)
+        key = key[::-1]
+        
+        # Create result dictionary
+        r = {}
+        for rv, indices in indices_dict.items():
+            # Re-invert string to grab value for each rv
+            str_slice = get_string_elems(key, indices)[::-1]
+            index = int(str_slice, 2)
+            r[rv] = self.get_node(rv).get_value_space()[index]
             
-            # Apply bit flip if not set
-            if not value:
-                circuit.x(qr[i])
-                
-        # Apply phase flip to evidence qubits
-        start = len(qr) - len(evidence)
-        if len(evidence) == 1: 
-            circuit.z(qr[start])
-        else:
-            circuit.mcp(np.pi, qr[start:-1], qr[-1])
+        # Add probability entry (non-normalized)
+        r["Prob"] = value
         
-        # Iterate evidence values
-        for name, value in evidence.items():
-            # Get qubit number
-            i = names_to_qbits[name]
+        return r
             
-            # Apply bit flip if not set
-            if not value:
-                circuit.x(qr[i])
+    def counts_to_dict(self, query: list[Id], results: dict[str, int]) -> pd.DataFrame:
+        indices_dict = {rv: self.rv_qubits[rv] for rv in query}
+        
+        # Convert counts dict
+        r = {k: [] for k in query}
+        r["Prob"] = []
+        for k, v in results.items():
+            entry = self.count_to_dict(k, v, indices_dict)
+            for k_, v_ in entry.items():
+                r[k_].append(v_)
                 
-        return circuit
-
-    def grover_diffuser(self, qr, names_to_qbits, barriers):
-        # Create quantum circuit
-        circuit = QuantumCircuit(qr)
-
-        # Apply hermitian conjugate state preparation circuit
-        circuit.compose(self.state_preparation(qr, names_to_qbits).inverse(), inplace=True)
-        if barriers:
-            circuit.barrier()
-
-        # Flip about the zero state
-        circuit.x(qr)
-        circuit.mcp(np.pi, qr[:-1], qr[-1])
-        circuit.x(qr)
-        if barriers:
-            circuit.barrier()
+        # Create df of results
+        df = pd.DataFrame(r).groupby(query).sum().reset_index()
+        df["Prob"] /= df["Prob"].sum()
+        df = df.sort_values(list(df.columns)).reset_index()
         
-        # Apply state preparation circuit
-        circuit.compose(self.state_preparation(qr, names_to_qbits), inplace=True)
-        return circuit
-
-    def grover_operator(self, qr, evidence, names_to_qbits, barriers):
-        circuit = QuantumCircuit(qr)
-        circuit.compose(self.grover_oracle(qr, evidence, names_to_qbits), inplace=True)
-        if barriers:
-            circuit.barrier()
-        circuit.compose(self.grover_diffuser(qr, names_to_qbits, barriers), inplace=True)
-        return circuit
-    
-    @staticmethod
-    def bitGen(n: int):
-        return [''.join(i) for i in itertools.product('01', repeat=n)]
-
-    def query(self, query, evidence={}, n_samples=1000, barriers=False):
-        
-        # Number of shots of the circuit
-        shots = n_samples if (len(evidence) == 0) else 1
-        
-        # Define qbit names
-        evidence_names = [k for k in evidence]
-        other_names = [name for name in self.parent_dict if name not in evidence_names]
-        names = other_names + evidence_names
-        names_to_qbits = {name: i for i, name in enumerate(names)}
-        qbits_to_names = {v: k for k, v in names_to_qbits.items()}
-
-        # Define the good states
-        other_states = self.bitGen(len(other_names))
-        evidence_state = ''.join([str(evidence[k]) for k in evidence])
-
-        # Define quantum and classical registers
-        qr = QuantumRegister(len(names_to_qbits))
-        cr = ClassicalRegister(len(names_to_qbits))
-        
-        # Initialize samples
-        samples = {name: [] for name in other_names}
-
-        # Get the required number of samples
-        iterations = n_samples if (len(evidence) != 0) else 1
-        for _ in tqdm(range(iterations), total=iterations, desc="Sampling", leave=True):
-        
-            # Constants for number of grover iterations
-            c = 1.4
-            l = 1
-
-            # Boolean flag to stop when evidence matches
-            done = False
-            
-            # Apply grover's algorithm repeatedly until 
-            # measured evidence qubit values match the given evidence
-            while not done:
-                # Update grover iterations
-                m = int(math.ceil(c**l))
-                grover_iter = int(np.random.randint(1, m+1))
-                
-                # Create quantum circuit
-                circuit = QuantumCircuit(qr, cr)
-
-                # Apply state preparation
-                circuit.compose(self.state_preparation(qr, names_to_qbits), inplace=True)
-                if barriers:
-                    circuit.barrier()
-
-                # Apply grover operator multiple times
-                if len(evidence) != 0:
-                    for _ in range(grover_iter):
-                        circuit.compose(self.grover_operator(qr, evidence, names_to_qbits, barriers), inplace=True)
-                    if barriers:
-                        circuit.barrier()
-
-                # Apply measurements
-                circuit.measure(qr, cr)
-
-                # Perform one measurement
-                simulator = QasmSimulator()
-                job = simulator.run(circuit, shots=shots)
-                counts = job.result().get_counts(circuit)
-                result = list(counts.keys())[0] if (shots == 1) else counts
-                
-                # Evidence and query measurements
-                if len(evidence) != 0:
-                    ev_meas = result[:len(evidence)][::-1]
-                    que_meas = result[len(evidence):][::-1]
-
-                # If evidence matches, append sample
-                if (len(evidence) != 0) and (ev_meas == evidence_state):
-                    # Get evidence and non evidence measurement
-                    for i, v in enumerate(que_meas):
-                        samples[qbits_to_names[i]].append(int(v))
-                    done = True
-                    
-                # Otherwise double the number of grover operators applied
-                elif len(evidence) != 0:
-                    l += 1
-                   
-                # When there is no evidence
-                else:
-                    for key in result:
-                        for i, v in enumerate(key[::-1]):
-                            for _ in range(result[key]):
-                                samples[qbits_to_names[i]].append(int(v))
-                    done = True
-                    
-        # Turn samples into probability table
-        df = pd.DataFrame(samples)
-        df = df.value_counts(normalize=True).to_frame("Prob")
-        
-        # Group over query variables and sum over all other variables
-        df = df.groupby(query).sum().reset_index()
+        # Remove index column if it exists
+        if "index" in df:
+            df = df.drop("index", axis=1)
             
         return df
+    
+    def qubits_prob(self, qubit_values: dict[int, int], rv_id: Id) -> float:
+        """
+        Calculates the probability that qubits have certain values.
+        """
+        
+        # Dict of ids to qubit values dict
+        id_values = {}
+        for q, v in qubit_values.items():
+            # Get id of qubit
+            nid = self.qubit_to_id(q)
+            
+            # Select qubit position in binary representation
+            index = q - min(self.rv_qubits[nid])
+            
+            # Add to dict
+            if nid not in id_values:
+                id_values[nid] = {index: v}
+            else:
+                id_values[nid][index] = v
+        
+        # Filter dataframe entries to the qubit values
+        df = self.get_node(rv_id).get_pt()
+        for nid in id_values:
+            value_space = self.get_node(nid).get_value_space()
+            df = df_binary_str_filter(df, nid, id_values[nid], value_space)
+        
+        return df["Prob"].sum()
+    
+    def recursive_rotation(self, qubits: list[int], parent_values: dict[int, int], nid: Id) -> QuantumCircuit:
+        circ = QuantumCircuit(self.qr)
+        
+        # Select current qubit
+        q = qubits[0]
+        
+        # Calculate probabilities
+        angle = lambda p1, p0: np.pi if (p0 == 0) else 2 * np.arctan(np.sqrt(p1 / p0))
+        parents_0 = {**{q: 0}, **parent_values}
+        p0 = self.qubits_prob(parents_0, nid)
+        parents_1 = {**{q: 1}, **parent_values}
+        p1 = self.qubits_prob(parents_1, nid)
+        theta = angle(p1, p0)
+        
+        # Apply rotation gate
+        if len(parent_values) == 0:
+            circ.ry(theta, self.qr[q])
+        else:
+            q_controls = [self.qr[i] for i in parent_values.keys()]
+            circ.mcry(theta, q_controls, self.qr[q])
+        
+        if len(qubits) > 1:
+            # Recursive call to compose other rotations
+            circ.compose(self.recursive_rotation(qubits[1::], parents_1, nid), inplace=True)
+            
+            # Apply not gate
+            if len(parent_values) == 0:
+                circ.x(self.qr[q])
+            else:
+                circ.mcx(q_controls, self.qr[q])
+                
+            # Recursive call to compose other rotations
+            circ.compose(self.recursive_rotation(qubits[1::], parents_0, nid), inplace=True)
+            
+            # Apply not gate
+            if len(parent_values) == 0:
+                circ.x(self.qr[q])
+            else:
+                circ.mcx(q_controls, self.qr[q])
+        
+        return circ
+        
+    def encoding_circ(self) -> QuantumCircuit:
+        circ = QuantumCircuit(self.qr)
+        
+        # Iterate every random variable
+        for nid in self.node_queue:
+            # Get parent and RV qubits
+            parents = [j for i in self.get_parents(nid) for j in self.rv_qubits[i]]
+            qubits = self.rv_qubits[nid]
+            
+            # Iterate all possible values of parents
+            parent_value_space = {q: [0, 1] for q in parents}
+            iterator = product_dict(parent_value_space) if len(parents) > 0 else [{}]
+            for parent_values in iterator:
+                unset_parents = [p for p in parent_values if parent_values[p]==0]
+                for p in unset_parents:
+                    circ.x(self.qr[p])
+                circ.compose(self.recursive_rotation(qubits, parent_values, nid), inplace=True)
+                for p in unset_parents:
+                    circ.x(self.qr[p])
+        
+        return circ
+    
+    def grover_oracle(self, evidence_qvalues: dict[int, int]) -> QuantumCircuit:
+        circ = QuantumCircuit(self.qr)
+        
+        # Flip unset qubits
+        for q, value in evidence_qvalues.items():
+            if value == 0:
+                circ.x(self.qr[q])
+
+        # Phase flip evidence qubits
+        start = list(evidence_qvalues.keys())[0]
+        if len(evidence_qvalues) == 1:
+            circ.z(self.qr[start])
+        else:
+            controls = [self.qr[q] for q in evidence_qvalues]
+            target = controls.pop()
+            circ.mcp(np.pi, controls, target)
+
+        # Flip unset qubits
+        for q, value in evidence_qvalues.items():
+            if value == 0:
+                circ.x(self.qr[q])        
+        
+        return circ
+    
+    def grover_diffuser(self) -> QuantumCircuit:
+        circ = QuantumCircuit(self.qr)
+        
+        # Apply inverse encoding
+        circ.compose(self.encoding_circ.inverse(), inplace=True)
+        
+        # Flip about the zero state
+        circ.x(self.qr)
+        circ.mcp(np.pi, self.qr[:-1], self.qr[-1])
+        circ.x(self.qr)
+        
+        # Apply encoding
+        circ.compose(self.encoding_circ, inplace=True)    
+    
+        return circ
+    
+    def grover_circ(self, evidence_qvalues: dict[int, int]) -> QuantumCircuit:
+        circ = QuantumCircuit(self.qr)
+        circ.compose(self.grover_oracle(evidence_qvalues), inplace=True)
+        circ.compose(self.grover_diffuser, inplace=True)
+        return circ
+    
+    def query_circ(self, cr: ClassicalRegister, evidence_qvalues: dict[Id, int], grover_iter: int) -> QuantumCircuit:
+        # Build circuit
+        circ = QuantumCircuit(self.qr, cr)
+        circ.compose(self.encoding_circ, inplace=True)
+        if len(evidence_qvalues) != 0:
+            for _ in range(grover_iter):
+                circ.compose(self.grover_circ(evidence_qvalues), inplace=True)
+                
+        return circ
+    
+    def query(self, query: list[Id], evidence: dict[Id, Value], n_samples: int) -> pd.DataFrame:
+        # Generate evidence qubit values dict
+        evidence_qvalues = {}
+        for rv, value in evidence.items():
+            # Evidence bitstring (Maybe has to be inverted)
+            bitstr = bin(self.get_node(rv).get_value_space().index(value))[2::]
+            
+            # Add qubits and values to evidence qvalues dict
+            for q, v in zip(self.rv_qubits[rv], bitstr):
+                evidence_qvalues[q] = v
+        
+        # Get the list of qubits for query and evidence
+        query_qubits = sorted([j for nid in query for j in self.rv_qubits[nid]])
+        evidence_qubits = sorted([j for nid in evidence for j in self.rv_qubits[nid]])
+        
+        # Define shots and number of iterations
+        results = {}
+        iterations = n_samples if len(evidence) > 0 else 1
+        shots = 1 if len(evidence) > 0 else n_samples
+        for _ in tqdm(range(iterations), total=iterations, desc="Sampling", leave=True):
+            c = 1.4
+            l = 1
+            done = False
+            
+            while not done:
+                # Update grover iterations
+                m = int(ceil(c**l))
+                grover_iter = int(np.random.randint(1, m+1))
+                
+                # Create classical register for the measurement and quantum circuit
+                cr = ClassicalRegister(len(self.qr))
+                circ = self.query_circ(cr, evidence_qvalues, grover_iter)
+                circ.measure(self.qr, cr)
+                
+                # Create simulator, job and get results
+                simulator = QasmSimulator()
+                job = simulator.run(circ, shots=shots)
+                counts = job.result().get_counts(circ)
+                
+                # If evidence needs to be checked
+                if shots == 1:
+                    done = True
+                    bitstr = list(counts.keys())[0]
+                    invbitstr = bitstr[::-1]
+                    
+                    # Check if evidence matches
+                    evidence_measurements = {q: invbitstr[q] for q in evidence_qubits}
+                    if evidence_measurements != evidence_qvalues:
+                        done = False
+                    elif bitstr not in results:
+                        results[bitstr] = 1
+                    else:
+                        results[bitstr] += 1
+                # No evidence
+                else:
+                    results = counts
+                    done = True
+        
+        return self.counts_to_dict(query, results)
