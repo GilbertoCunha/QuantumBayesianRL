@@ -1,5 +1,4 @@
 from __future__ import annotations
-from src.networks.ddn import DynamicDecisionNetwork as DDN
 from src.utils import product_dict, belief_update, df_dict_filter
 from src.trees.tree import Tree
 from typing import Union
@@ -11,6 +10,7 @@ Value = Union[int, float]
 SpaceElement = dict[Id, Value]
 Space = dict[Id, list[Value]]
 BeliefState = dict[Id, pd.DataFrame]
+DDN = "DynamicDecisionNetwork"
 
 
 def build_tree_aux(action: SpaceElement, action_space: Space, observation_space: Space, horizon: int) -> Tree:
@@ -41,7 +41,7 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
     # TODO: Make sure tree is an action node
     # Create evidence and perform query
     action = tree.get_attribute("action")
-    reward_node = ddn.get_nodes_by_type(DDN.reward_type)[0] # TODO: Make sure only one reward node exists
+    reward_node = ddn.get_nodes_by_type(ddn.reward_type)[0] # TODO: Make sure only one reward node exists
     evidence = {**belief_state, **action}
     reward_df = ddn.query([reward_node], evidence, n_samples)
     
@@ -51,7 +51,7 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
     # Increase value due to children nodes
     if len(tree.get_children()) > 0:
         # Calculate observation distribution
-        observation_nodes = ddn.get_nodes_by_type(DDN.observation_type)
+        observation_nodes = ddn.get_nodes_by_type(ddn.observation_type)
         observation_df = ddn.query(observation_nodes, evidence, n_samples)
         
         # Iterate every children observation node

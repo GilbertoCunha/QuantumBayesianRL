@@ -28,6 +28,7 @@ class QuantumBayesianNetwork(BN):
         self.qr = QuantumRegister(n_qubits)
         
         # Create quantum circuits for running the queries
+        # FIXME: Error in initialization for decision networks (ACTION NODE CPTS ARE NOT DEFINED UPON INITIALIZATION)
         self.encoding_circ = self.encoding_circ()
         self.grover_diffuser = self.grover_diffuser()
         
