@@ -162,27 +162,10 @@ class QuantumBayesianNetwork(BN):
         job = simulator.run(circ, shots=n_samples)
         results = job.result().get_counts(circ)
         
-        # Create dict of query rvs to measurement qubits
+        # Create dict of query rvs to list of measurement qubits
         query_rv_qubits = {rv: [] for rv in query}
         for i, q in enumerate(query_qubits):
             rv = self.qubit_to_id(q)
             query_rv_qubits[rv].append(i)
         
-        # Convert counts dict
-        r = {k: [] for k in query}
-        r["Prob"] = []
-        for k, v in results.items():
-            entry = counts_to_dict(k, v, query_rv_qubits)
-            for k_, v_ in entry.items():
-                r[k_].append(v_)
-                
-        # Create df of results
-        df = pd.DataFrame(r)
-        df["Prob"] /= df["Prob"].sum()
-        df = df.sort_values(query).reset_index()
-        
-        # Remove index column if it exists
-        if "index" in df:
-            df = df.drop("index", axis=1)
-        
-        return df
+        return counts_to_dict(query, results, query_rv_qubits)
