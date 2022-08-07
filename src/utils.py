@@ -34,44 +34,7 @@ def get_string_elems(s: str, indices: list[int]) -> str:
     for i in indices:
         r += s[i]
     return r
-        
-def count_to_dict(key: str, value: int, indices_dict: dict[Id, list[int]]) -> dict[str, int]:
-    # TODO: Convert str_slice using the value space of each RV
-    
-    # Invert key (Qiskit is little endian)
-    key = key[::-1]
-    
-    # Create result dictionary
-    r = {}
-    for rv, indices in indices_dict.items():
-        # Re-invert string to grab value for each rv
-        str_slice = get_string_elems(key, indices)[::-1]
-        r[rv] = int(str_slice, 2)
-        
-    # Add probability entry (non-normalized)
-    r["Prob"] = value
-    
-    return r
-        
-def counts_to_dict(query: list[Id], results: dict[str, int], indices_dict: dict[Id, list[int]]) -> pd.DataFrame:
-    # Convert counts dict
-        r = {k: [] for k in query}
-        r["Prob"] = []
-        for k, v in results.items():
-            entry = count_to_dict(k, v, indices_dict)
-            for k_, v_ in entry.items():
-                r[k_].append(v_)
-                
-        # Create df of results
-        df = pd.DataFrame(r)
-        df["Prob"] /= df["Prob"].sum()
-        df = df.sort_values(list(df.columns)).reset_index()
-        
-        # Remove index column if it exists
-        if "index" in df:
-            df = df.drop("index", axis=1)
-            
-        return df
+
         
 def df_binary_str_filter(df: pd.DataFrame, col: str, bin_dict: dict[int, int], value_space: list[Value]) -> pd.DataFrame:
     mask = lambda i: are_bit_values(value_space.index(df[col].iloc[i]), bin_dict)
