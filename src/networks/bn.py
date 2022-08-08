@@ -127,6 +127,22 @@ class BayesianNetwork:
     def get_nodes_by_key(self, key: Callable[[Id, DiscreteNode], bool]):
         return [n for n in self.node_dict.keys() if key(n, self.node_dict[n])]
     
+    def encode_evidence(self, evidence: dict[Id, int]) -> dict[Id, pd.DataFrame]:
+        # Fix the value of every root node in evidence for faster inference
+        root_nodes = [n for n in self.get_nodes() if (self.is_root(n) and n in evidence)]
+        backup_pts = {r: self.get_pt(r) for r in root_nodes}
+        for r in root_nodes:
+            if isinstance(evidence[r], pd.DataFrame):
+                self.add_pt(r, evidence[r])
+                evidence.pop(r)
+            else:
+                self.fix_value(r, evidence[r])
+        return backup_pts
+    
+    def decode_evidence(self, backup_pts: dict[Id, pd.DataFrame]):
+        for r in backup_pts:
+            self.add_pt(r, backup_pts[r])
+    
     def get_sample(self) -> dict[Id, int]:
         """Returns a sample from every node using the direct sampling algorithm. 
         Uses the DiscreteNode class sample method.
@@ -158,45 +174,23 @@ class BayesianNetwork:
         
         # TODO: throw error when evidence DataFrame is not a root node
         
-        # Initialize evidence as empty dict if it is None
-        evidence = {} if evidence is None else evidence
-            
-        # Create empty DataFrame for sample collection
         sample_df = pd.DataFrame()
-        
-        # Fix the value of every root node in evidence for faster inference
-        root_nodes = [n for n in self.get_nodes() if (self.is_root(n) and n in evidence)]
-        backup_pts = {r: self.get_pt(r) for r in root_nodes}
-        for r in root_nodes:
-            if isinstance(evidence[r], pd.DataFrame):
-                self.add_pt(r, evidence[r])
-                evidence.pop(r)
-            else:
-                self.fix_value(r, evidence[r])
+        evidence = {} if evidence is None else evidence
+        backup_pts = self.encode_evidence(evidence) # Fix the value of every root node in evidence for faster inference
 
         # Create multiple samples
         num_samples = 0
         while (num_samples < n_samples):
-
-            # Extract sample from the Bayesian Network
-            sample = self.get_sample()
-
-            # Store sample if it matches with evidence
-            matches = [sample[name] == evidence[name] for name in evidence]
+            sample = self.get_sample() # Extract sample from the BN
+            matches = [sample[name] == evidence[name] for name in evidence] # Store sample if it matches with evidence
             if all(matches):
                 sample = {k: [v] for k, v in sample.items()}
                 sample = pd.DataFrame(sample)
                 sample_df = pd.concat([sample_df, sample], ignore_index=True, axis=0)
                 num_samples += 1
                 
-        # Re-change probability tables of root nodes in evidence
-        for r in backup_pts:
-            self.add_pt(r, backup_pts[r])
-
-        # Turn result into probability table
-        sample_df = sample_df.value_counts(normalize=True).to_frame("Prob")
-
-        # Group over query variables and sum over all other variables
-        sample_df = sample_df.groupby(query).sum().sort_values(query).reset_index()
+        self.decode_evidence(backup_pts) # Re-change probability tables of root nodes in evidence
+        sample_df = sample_df.value_counts(normalize=True).to_frame("Prob") # Turn result into probability table
+        sample_df = sample_df.groupby(query).sum().sort_values(query).reset_index() # Group over query variables and sum over all other variables
 
         return sample_df

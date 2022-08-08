@@ -29,8 +29,8 @@ class QuantumBayesianNetwork(BN):
         
         # Create quantum circuits for running the queries
         # FIXME: Error in initialization for decision networks (ACTION NODE CPTS ARE NOT DEFINED UPON INITIALIZATION)
-        self.encoding_circ = self.encoding_circ()
-        self.grover_diffuser = self.grover_diffuser()
+        # self.encoding_circ = self.encoding_circ()
+        # self.grover_diffuser = self.grover_diffuser()
         
     def get_rv_qubit_dict(self) -> dict[Id, list[int]]:
         # Iterate nodes (already in topological order)
@@ -88,6 +88,18 @@ class QuantumBayesianNetwork(BN):
             df = df.drop("index", axis=1)
             
         return df
+    
+    def evidence_to_qvalues(self, evidence: dict[Id, Value]) -> dict[int, int]:
+        # Generate evidence qubit values dict
+        evidence_qvalues = {}
+        for rv, value in evidence.items():
+            # Evidence bitstring (Maybe has to be inverted)
+            bitstr = bin(self.get_node(rv).get_value_space().index(value))[2::]
+            # Add qubits and values to evidence qvalues dict
+            for q, v in zip(self.rv_qubits[rv], bitstr):
+                evidence_qvalues[q] = v
+                
+        return evidence_qvalues
     
     def qubits_prob(self, qubit_values: dict[int, int], rv_id: Id) -> float:
         """
@@ -159,7 +171,7 @@ class QuantumBayesianNetwork(BN):
         
         return circ
         
-    def encoding_circ(self) -> QuantumCircuit:
+    def encoding(self) -> QuantumCircuit:
         circ = QuantumCircuit(self.qr)
         
         # Iterate every random variable
@@ -224,7 +236,7 @@ class QuantumBayesianNetwork(BN):
     def grover_circ(self, evidence_qvalues: dict[int, int]) -> QuantumCircuit:
         circ = QuantumCircuit(self.qr)
         circ.compose(self.grover_oracle(evidence_qvalues), inplace=True)
-        circ.compose(self.grover_diffuser, inplace=True)
+        circ.compose(self.grover_diffuser_circ, inplace=True)
         return circ
     
     def query_circ(self, cr: ClassicalRegister, evidence_qvalues: dict[Id, int], grover_iter: int) -> QuantumCircuit:
@@ -238,18 +250,13 @@ class QuantumBayesianNetwork(BN):
         return circ
     
     def query(self, query: list[Id], evidence: dict[Id, Value], n_samples: int) -> pd.DataFrame:
-        # Generate evidence qubit values dict
-        evidence_qvalues = {}
-        for rv, value in evidence.items():
-            # Evidence bitstring (Maybe has to be inverted)
-            bitstr = bin(self.get_node(rv).get_value_space().index(value))[2::]
-            
-            # Add qubits and values to evidence qvalues dict
-            for q, v in zip(self.rv_qubits[rv], bitstr):
-                evidence_qvalues[q] = v
+        # Encode root node evidence values, generate circuits
+        backup_pts = self.encode_evidence(evidence)
+        self.encoding_circ = self.encoding()
+        self.grover_diffuser_circ = self.grover_diffuser()
         
-        # Get the list of qubits for query and evidence
-        query_qubits = sorted([j for nid in query for j in self.rv_qubits[nid]])
+        # Generate evidence qubit values dict
+        evidence_qvalues = self.evidence_to_qvalues(evidence)
         evidence_qubits = sorted([j for nid in evidence for j in self.rv_qubits[nid]])
         
         # Define shots and number of iterations
@@ -286,6 +293,7 @@ class QuantumBayesianNetwork(BN):
                     evidence_measurements = {q: invbitstr[q] for q in evidence_qubits}
                     if evidence_measurements != evidence_qvalues:
                         done = False
+                        l += 1
                     elif bitstr not in results:
                         results[bitstr] = 1
                     else:
@@ -294,5 +302,8 @@ class QuantumBayesianNetwork(BN):
                 else:
                     results = counts
                     done = True
+                    
+        # Decode evidence values
+        self.decode_evidence(backup_pts)
         
         return self.counts_to_dict(query, results)
