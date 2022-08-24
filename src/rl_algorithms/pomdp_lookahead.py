@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.utils import product_dict, belief_update, df_dict_filter
+from src.utils import product_dict, belief_update, df_dict_filter, get_expected_reward
 from src.trees.tree import Tree
 from typing import Union
 import pandas as pd
@@ -43,10 +43,9 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
     action = tree.get_attribute("action")
     reward_node = ddn.get_nodes_by_type(ddn.reward_type)[0] # TODO: Make sure only one reward node exists
     evidence = {**belief_state, **action}
-    reward_df = ddn.query([reward_node], evidence, n_samples)
     
     # Increase value by expected reward
-    r = (reward_df[reward_node] * reward_df["Prob"]).sum()
+    r = get_expected_reward(reward_node, evidence, n_samples)
     
     # Increase value due to children nodes
     if len(tree.get_children()) > 0:

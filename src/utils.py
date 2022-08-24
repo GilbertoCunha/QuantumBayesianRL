@@ -46,7 +46,7 @@ def df_dict_filter(df: pd.DataFrame, dict_filter: dict):
     return df.loc[(df[list(dict_filter)] == pd.Series(dict_filter)).all(axis=1)]
         
         
-def belief_update(ddn: DDN, belief_state: BeliefState, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100) -> dict[Id, pd.DataFrame]:
+def belief_update(ddn: DDN, belief_state: BeliefState, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100, epsilon: float = 1e-3) -> dict[Id, pd.DataFrame]:
         # TODO: check if actions and observations dict are correct
         
         # Get next state nodes
@@ -70,6 +70,16 @@ def belief_update(ddn: DDN, belief_state: BeliefState, actions: dict[Id, Value],
             nid_query = list(ddn.get_node(nid).get_pt().columns)
             
             # Construct CPT by summing over other variables
-            r[nid] = next_belief.groupby(nid_query).sum().reset_index()
+            df = next_belief.groupby(nid_query).sum().reset_index()
+            
+            # Remove zero-entries with epsilon
+            df[df["Prob"] == 0] = epsilon
+            df["Prob"] /= df["Prob"].sum()
+            r[nid] = df
                 
         return r
+    
+    
+def get_expected_reward(ddn: DDN, reward_node: Id, evidence: dict[Id, Value], n_samples) -> Value:
+    reward_df = ddn.query([reward_node], evidence, n_samples)
+    return (reward_df[reward_node] * reward_df["Prob"]).sum()

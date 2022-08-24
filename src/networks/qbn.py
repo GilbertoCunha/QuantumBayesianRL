@@ -263,7 +263,8 @@ class QuantumBayesianNetwork(BN):
         results = {}
         iterations = n_samples if len(evidence) > 0 else 1
         shots = 1 if len(evidence) > 0 else n_samples
-        for _ in tqdm(range(iterations), total=iterations, desc="Sampling", leave=True):
+        # iterator = tqdm(range(iterations), total=iterations, desc="Sampling", leave=True)
+        for _ in range(iterations):
             c = 1.4
             l = 1
             done = False
