@@ -285,8 +285,8 @@ class QuantumBayesianNetwork(BN):
                 counts = job.result().get_counts(circ)
                 
                 # If evidence needs to be checked
+                done = True
                 if shots == 1:
-                    done = True
                     bitstr = list(counts.keys())[0]
                     invbitstr = bitstr[::-1]
                     
@@ -302,7 +302,6 @@ class QuantumBayesianNetwork(BN):
                 # No evidence
                 else:
                     results = counts
-                    done = True
                     
         # Decode evidence values
         self.decode_evidence(backup_pts)

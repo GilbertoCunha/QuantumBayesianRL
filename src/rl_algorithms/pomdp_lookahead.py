@@ -45,7 +45,7 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
     evidence = {**belief_state, **action}
     
     # Increase value by expected reward
-    r = get_expected_reward(reward_node, evidence, n_samples)
+    r = get_expected_reward(ddn, reward_node, evidence, n_samples)
     
     # Increase value due to children nodes
     if len(tree.get_children()) > 0:
