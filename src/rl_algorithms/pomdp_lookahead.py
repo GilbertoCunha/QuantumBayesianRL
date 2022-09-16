@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.utils import product_dict, belief_update, df_dict_filter, get_expected_reward
+from src.utils import product_dict, belief_update, df_dict_filter, get_avg_reward_and_std
 from src.trees.tree import Tree
 from typing import Union
 import pandas as pd
@@ -45,7 +45,7 @@ def q_value(ddn: DDN, tree: Tree, belief_state: BeliefState, n_samples: int) -> 
     evidence = {**belief_state, **action}
     
     # Increase value by expected reward
-    r = get_expected_reward(ddn, reward_node, evidence, n_samples)
+    r, _ = get_avg_reward_and_std(ddn, reward_node, evidence, n_samples)
     
     # Increase value due to children nodes
     if len(tree.get_children()) > 0:

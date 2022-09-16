@@ -2,6 +2,7 @@ from __future__ import annotations
 from itertools import product
 from typing import Union
 import pandas as pd
+import numpy as np
 
 # Types
 Id = tuple[str, int]
@@ -78,8 +79,16 @@ def belief_update(ddn: DDN, belief_state: BeliefState, actions: dict[Id, Value],
             r[nid] = df
                 
         return r
-    
-    
-def get_expected_reward(ddn: DDN, reward_node: Id, evidence: dict[Id, Value], n_samples) -> Value:
+
+
+def get_rewards_and_weights(ddn: DDN, reward_node: Id, evidence: dict[Id, Value], n_samples) -> Value:
     reward_df = ddn.query([reward_node], evidence, n_samples)
-    return (reward_df[reward_node] * reward_df["Prob"]).sum()
+    rewards, weights = reward_df[reward_node].to_numpy(), reward_df["Prob"].to_numpy()
+    return rewards, weights
+
+
+def get_avg_reward_and_std(ddn: DDN, reward_node: Id, evidence: dict[Id, Value], n_samples) -> Value:
+    rewards, weights = get_rewards_and_weights(ddn, reward_node, evidence, n_samples)
+    avg = np.average(rewards, weights=weights)
+    std = np.sqrt(np.average((avg - rewards)**2, weights=weights))
+    return avg, std

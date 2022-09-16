@@ -27,11 +27,6 @@ class QuantumBayesianNetwork(BN):
         n_qubits = sum([len(self.rv_qubits[key]) for key in self.rv_qubits])
         self.qr = QuantumRegister(n_qubits)
         
-        # Create quantum circuits for running the queries
-        # FIXME: Error in initialization for decision networks (ACTION NODE CPTS ARE NOT DEFINED UPON INITIALIZATION)
-        # self.encoding_circ = self.encoding_circ()
-        # self.grover_diffuser = self.grover_diffuser()
-        
     def get_rv_qubit_dict(self) -> dict[Id, list[int]]:
         # Iterate nodes (already in topological order)
         counter, r = 0, {}
@@ -49,7 +44,6 @@ class QuantumBayesianNetwork(BN):
         return [key for key in self.rv_qubits if qubit in self.rv_qubits[key]][0]
     
     def count_to_dict(self, key: str, value: int, indices_dict: dict[Id, list[int]]) -> dict[str, int]:
-        # TODO: Convert str_slice using the value space of each RV
         
         # Invert key (Qiskit is little endian)
         key = key[::-1]
@@ -95,6 +89,11 @@ class QuantumBayesianNetwork(BN):
         for rv, value in evidence.items():
             # Evidence bitstring (Maybe has to be inverted)
             bitstr = bin(self.get_node(rv).get_value_space().index(value))[2::]
+            
+            # Add zeros to left of bitstr and invert it
+            bitstr = (len(self.rv_qubits[rv]) - len(bitstr))*"0" + bitstr
+            bitstr = bitstr[::-1]
+            
             # Add qubits and values to evidence qvalues dict
             for q, v in zip(self.rv_qubits[rv], bitstr):
                 evidence_qvalues[q] = v
