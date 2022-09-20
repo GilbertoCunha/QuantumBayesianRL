@@ -15,7 +15,7 @@ BeliefState = dict[Id, pd.DataFrame]
 Network = Union[BayesianNetwork, QuantumBayesianNetwork]
 
 
-def DDNFactory(Base: Network, discount: float = 1.0):
+def DDNFactory(Base: Network):
     
     class DynamicDecisionNetwork(DNFactory(Base)):
         """Extends the decision network class to implement a dynamic decision network.
