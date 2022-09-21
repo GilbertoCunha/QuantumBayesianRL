@@ -1,8 +1,8 @@
 from get_ddns import get_tiger_ddn, get_robot_ddn, get_gridworld_ddn
 from src.rl_algorithms.pomdp_lookahead import build_tree, pomdp_lookahead
-from src.utils import get_avg_reward_and_std, product_dict
 from src.networks.qbn import QuantumBayesianNetwork as QBN
 from src.networks.bn import BayesianNetwork as BN
+from src.utils import get_avg_reward_and_std
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
@@ -41,12 +41,13 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time):
     return avg_r, std
 
 
-def get_metrics(ddn, tree, n_samples, reward_samples, time, num_runs, problem_name):
+def get_metrics(ddn, tree, n_samples, reward_samples, time, num_runs, problem_name, horizon, ratio):
     # Calculate metrics per run
     avg_rs, stds = [], []
     
     # Iterate all runs
     run_bar = tqdm(range(num_runs), total=num_runs, desc=f"{problem_name} runs", position=1, leave=False)
+    run_bar.set_postfix(H=horizon, ratio=ratio)
     for run in run_bar:
         # Get metrics for specific run
         avg_r, std = get_metrics_per_run(ddn, tree, n_samples, reward_samples, time)
@@ -138,23 +139,8 @@ def run_config(config):
     
     # Get metrics
     quantum_samples = int(np.ceil(classical_samples**ratio))
-    c_avg_r, c_std = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Classic " + name)
-    q_avg_r, q_std = get_metrics(ddn, tree, quantum_samples, reward_samples, time, num_runs, "Quantum " + name)
+    c_avg_r, c_std = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Classic " + name, horizon, ratio)
+    q_avg_r, q_std = get_metrics(ddn, tree, quantum_samples, reward_samples, time, num_runs, "Quantum " + name, horizon, ratio)
     
     # Save plots for this run
     saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical_samples, ratio, quantum_samples, num_runs)
-    
-    
-def run(configs):
-    
-    # Create list of dictionaries as product of dictionary of lists
-    total_configs = np.prod([len(v) for _, v in configs.items()])
-    configs = product_dict(configs)
-    
-    # Iterate each config
-    config_bar = tqdm(configs, total=total_configs, desc="Iterating configs", position=0, leave=False)
-    for config in config_bar:
-        horizon = config["horizon"]
-        ratio = config["ratio"]
-        config_bar.set_postfix(H=horizon, ratio=ratio)
-        run_config(config)

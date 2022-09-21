@@ -1,7 +1,11 @@
-from aux import run
+from concurrent.futures import ProcessPoolExecutor
+from src.utils import product_dict
+from aux import run_config
+from tqdm import tqdm
+import numpy as np
 
-config = {
-    "problem_name": ["Tiger", "Robot", "Gridworld"],
+configs = {
+    "problem_name": ["Robot", "Gridworld"],
     "discount": [0.8],
     "horizon": [1, 2],
     "classical_samples": [10],
@@ -10,4 +14,13 @@ config = {
     "time": [40],
     "num_runs": [50]
 }
-run(config)
+
+# Create list of dictionaries as product of dictionary of lists
+total_configs = np.prod([len(v) for _, v in configs.items()])
+configs = product_dict(configs)
+
+if __name__ == "__main__":
+    # Parallelize code
+    with ProcessPoolExecutor() as executor:
+        # Iterate each config
+        results = list(tqdm(executor.map(run_config, configs), total=total_configs, desc="Iterating configs", position=0, leave=False))
