@@ -5,6 +5,7 @@ from src.networks.bn import BayesianNetwork as BN
 from src.utils import get_avg_reward_and_std
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import pandas as pd
 import numpy as np
 
 
@@ -143,4 +144,11 @@ def run_config(config):
     q_avg_r, q_std = get_metrics(ddn, tree, quantum_samples, reward_samples, time, num_runs, "Quantum " + name, horizon, ratio)
     
     # Save plots for this run
-    saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical_samples, ratio, quantum_samples, num_runs)
+    run_df = pd.DataFrame({
+        "c_avg_r": c_avg_r,
+        "c_avg_std": c_std,
+        "q_avg_r": q_avg_r,
+        "q_avg_std": q_std
+    })
+    # saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical_samples, ratio, quantum_samples, num_runs)
+    return config, run_df
