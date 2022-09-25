@@ -125,13 +125,13 @@ def run_config(config):
     num_runs = config["num_runs"]
     
     # Get the ddn
-    if name == "Tiger":
+    if name == "tiger":
         ddn = get_tiger_ddn(BN, discount)
         # qddn = get_tiger_ddn(QBN, discount)
-    elif name == "Robot":
+    elif name == "robot":
         ddn = get_robot_ddn(BN, discount)
         # qddn = get_robot_ddn(QBN, discount)
-    elif name == "Gridworld":
+    elif name == "gridworld":
         ddn = get_gridworld_ddn(BN, discount)
         # qddn = get_gridworld_ddn(QBN, discount)
     
