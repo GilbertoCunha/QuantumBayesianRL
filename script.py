@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 configs = {
-    "problem_name": ["tiger"],# ["Tiger", "Robot", "Gridworld"],
+    "problem_name": ["robot"],# ["Tiger", "Robot", "Gridworld"],
     "discount": [0.8],
     "horizon": [1, 2, 3],
     "classical_samples": [5, 10, 15],
