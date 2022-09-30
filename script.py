@@ -7,14 +7,13 @@ import numpy as np
 import os
 
 configs = {
-    "problem_name": ["robot"],# ["Tiger", "Robot", "Gridworld"],
+    "problem_name": ["tiger"],# ["Tiger", "Robot", "Gridworld"],
     "discount": [0.8],
-    "horizon": [1, 2, 3],
-    "classical_samples": [5, 10, 15],
-    "ratio": [1.4, 1.6, 1.8, 2],
+    "horizon": [1, 2],
+    "classical_samples": [5],
     "reward_samples": [1000],
-    "time": [40],
-    "num_runs": [50]
+    "time": [3],
+    "num_runs": [1]
 }
 
 # Create list of dictionaries as product of dictionary of lists
@@ -29,8 +28,7 @@ if __name__ == "__main__":
         
     # Transform configs into dictionary for dataframe
     config_df = {}
-    config_df["results"] = []
-    for config, run_df in results:
+    for config, run_dict in results:
         # Add config to dataframe
         for key, value in config.items():
             if key not in config_df:
@@ -38,7 +36,10 @@ if __name__ == "__main__":
             config_df[key].append(value)
             
         # Add result to dataframe
-        config_df["results"].append(run_df)
+        for key, value in run_dict.items():
+            if key not in config_df:
+                config_df[key] = []
+            config_df[key].append(value)
     config_df = pd.DataFrame(config_df)
         
     # Append results to possibly existing dataframe
