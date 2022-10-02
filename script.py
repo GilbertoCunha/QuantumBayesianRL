@@ -7,13 +7,13 @@ import numpy as np
 import os
 
 configs = {
-    "problem_name": ["tiger"],# ["Tiger", "Robot", "Gridworld"],
-    "discount": [0.8],
-    "horizon": [1, 2],
-    "classical_samples": [5],
-    "reward_samples": [1000],
-    "time": [3],
-    "num_runs": [1]
+    "problem_name": ["robot"],# ["Tiger", "Robot", "Gridworld"],
+    "discount": [0.9],
+    "horizon": [1, 2, 3],
+    "classical_samples": [5, 10, 15],
+    "reward_samples": [200],
+    "time": [40],
+    "num_runs": [30]
 }
 
 # Create list of dictionaries as product of dictionary of lists

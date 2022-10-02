@@ -9,7 +9,7 @@ def get_tiger_ddn(base, discount):
     a0 = DiscreteNode(("A", 0), node_type=ActionType, value_space=[0, 1, 2])
     s1 = DiscreteNode(("S", 1), node_type=StateType, value_space=[0, 1])
     o1 = DiscreteNode(("O", 1), node_type=ObservationType, value_space=[0, 1])
-    r1 = DiscreteNode(("R", 1), node_type=RewardType, value_space=[-100, -1, 10])
+    r1 = DiscreteNode(("R", 1), node_type=RewardType, value_space=[-10, -1, 5])
     # Settings for the POMDP
     nodes = [s0, s1, o1, r1, a0]
     edges = [
@@ -47,7 +47,7 @@ def get_tiger_ddn(base, discount):
     data = {
         ("A", 0): [0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,2,2,2], 
         ("S", 0): [0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1], 
-        ("R", 1): [-100,-1,10,-100,-1,10,-100,-1,10,-100,-1,10,-100,-1,10,-100,-1,10], 
+        ("R", 1): [-10,-1,5,-10,-1,5,-10,-1,5,-10,-1,5,-10,-1,5,-10,-1,5], 
         "Prob": [0.05,0.9,0.05,0.05,0.9,0.05,0.9,0.05,0.05,0.05,0.05,0.9,0.05,0.05,0.9,0.9,0.05,0.05]
     }
     ddn.add_pt(("R", 1), data)
