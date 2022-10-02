@@ -87,7 +87,7 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
         # Place results in the bar
         tbar.set_postfix(avg_r=avg, std=cur_std)
         
-    avg_r, std, sample_nr, caps = np.array(avg_r), np.array(std), np.array(sample_nr), np.array(cap)
+    avg_r, std, sample_nr, caps = np.array(avg_r), np.array(std), np.array(sample_nr), np.array(caps)
     
     return avg_r, std, sample_nr, caps
 
@@ -116,7 +116,7 @@ def get_metrics(ddn, tree, n_samples, reward_samples, time, num_runs, problem_na
     avg_rs = np.mean(avg_rs, axis=0)
     avg_samples = np.mean(sample_nr, axis=0)
     avg_caps = np.mean(caps, axis=0)
-    stds = np.sqrt(np.mean(std**2, axis=0))
+    stds = np.sqrt(np.mean(stds**2, axis=0))
     
     return avg_rs, stds, avg_samples, avg_caps
 
