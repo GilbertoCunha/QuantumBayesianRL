@@ -10,7 +10,6 @@ import numpy as np
 
 
 def get_tree(ddn, horizon):
-    horizon = 2
     action_space = ddn.get_space(ddn.action_type)
     observation_space = ddn.get_space(ddn.observation_type)
     tree = build_tree({}, action_space, observation_space, horizon)
