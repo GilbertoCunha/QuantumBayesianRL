@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
+import os
 
 
 def get_tree(ddn, horizon):
@@ -204,5 +205,20 @@ def run_config(config):
         "avg_ratio": avg_ratio,
         "cap": caps
     }
+    
+    # Transform configs into dictionary for dataframe
+    df = pd.DataFrame({**config, **run_dict})
+        
+    # Append results to possibly existing dataframe
+    if os.path.isfile("data.h5"):
+        data_df = pd.read_hdf("data.h5")
+        data_df = pd.concat([data_df, df], ignore_index=True)
+    else:
+        data_df = df
+        
+    # Add data to hdf file
+    data_df.to_hdf("data.h5", key="df")
+    
+    
     # saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical_samples, ratio, quantum_samples, num_runs)
     return config, run_dict
