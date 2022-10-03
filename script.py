@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 configs = {
-    "problem_name": ["gridworld"],
+    "problem_name": ["robot"],
     "discount": [0.9],
     "horizon": [1, 2, 3],
     "classical_samples": [5, 10, 15],
