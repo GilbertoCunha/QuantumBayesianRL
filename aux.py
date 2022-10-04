@@ -92,16 +92,21 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
     return avg_r, std, sample_nr, caps
 
 
-def get_metrics(ddn, tree, n_samples, reward_samples, time, num_runs, problem_name, horizon, classical_samples, quantum=False):
+def get_metrics(ddn, tree, config, num_runs, time, reward_samples, quantum=False):
     # Calculate metrics per run
     avg_rs, stds, sample_nr, caps = [], [], [], []
+    
+    # Get config parameters
+    problem_name = config["problem_name"]
+    horizon = config["horizon"]
+    classical_samples = config["classical_samples"]
     
     # Iterate all runs
     run_bar = tqdm(range(num_runs), total=num_runs, desc=f"{problem_name} runs", position=1, leave=False)
     run_bar.set_postfix(H=horizon, base_samples=classical_samples)
-    for run in run_bar:
+    for _ in run_bar:
         # Get metrics for specific run
-        avg_r, std, samples, cap = get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum)
+        avg_r, std, samples, cap = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time, quantum)
         
         # Append metrics to list
         avg_rs.append(avg_r)
@@ -110,15 +115,9 @@ def get_metrics(ddn, tree, n_samples, reward_samples, time, num_runs, problem_na
         caps.append(cap)
         
     # Turn lists to arrays
-    avg_rs, stds, sample_nr, caps = np.array(avg_rs), np.array(stds), np.array(sample_nr), np.array(caps)
-        
-    # Get mean metrics
-    avg_rs = np.mean(avg_rs, axis=0)
-    avg_samples = np.mean(sample_nr, axis=0)
-    avg_caps = np.mean(caps, axis=0)
-    stds = np.sqrt(np.mean(stds**2, axis=0))
+    avg_r, stds, sample_nr, caps = np.array(avg_rs), np.array(stds), np.array(sample_nr), np.array(caps)
     
-    return avg_rs, stds, avg_samples, avg_caps
+    return avg_r, stds, sample_nr, caps
 
 
 def saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical_samples, ratio, quantum_samples, num_runs):
@@ -167,15 +166,11 @@ def saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical
     plt.clf()
 
 
-def run_config(config):
+def run_config(config, num_runs, time, reward_samples):
     # Extract data from config
     name = config["problem_name"]
     discount = config["discount"]
     horizon = config["horizon"]
-    classical_samples = config["classical_samples"]
-    reward_samples = config["reward_samples"]
-    time = config["time"]
-    num_runs = config["num_runs"]
     
     # Get the ddn
     if name == "tiger":
@@ -192,29 +187,27 @@ def run_config(config):
     tree = get_tree(ddn, horizon)
     
     # Get metrics
-    c_avg_r, c_std, c_avg_s, _ = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Classic " + name, horizon, classical_samples)
-    q_avg_r, q_std, q_avg_s, caps = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Quantum " + name, horizon, classical_samples, True)
-    avg_ratio = q_avg_s / c_avg_s
+    c_r, c_std, c_s, _ = get_metrics(ddn, tree, config, num_runs, time, reward_samples)
+    q_r, q_std, q_s, caps = get_metrics(ddn, tree, config, num_runs, time, reward_samples, True)
+    ratio = q_s / c_s
     
     # Save plots for this config
-    run_dict = {
-        "c_avg_r": c_avg_r,
-        "c_avg_std": c_std,
-        "q_avg_r": q_avg_r,
-        "q_avg_std": q_std,
-        "avg_ratio": avg_ratio,
-        "cap": caps
-    }
+    run_dict = [{
+        "run_num": i,
+        "time_step": j,
+        "c_r": c_r[i,j],
+        "c_std": c_std[i,j],
+        "q_r": q_r[i,j],
+        "q_std": q_std[i,j],
+        "ratio": ratio[i,j],
+        "cap": caps[i,j]
+    } for i in range(num_runs) for j in range(time)]
     
     # Transform configs into dictionary for dataframe
-    df = pd.DataFrame([{**config, **run_dict}])
+    df = pd.DataFrame([{**config, **run_d} for run_d in run_dict])
         
     # Append results to possibly existing dataframe
-    if os.path.isfile("data.h5"):
-        data_df = pd.read_hdf("data.h5")
-        data_df = pd.concat([data_df, df], ignore_index=True)
+    if os.path.isfile("data.csv"):
+        df.to_csv("data.csv", mode='a', index=False, header=False)
     else:
-        data_df = df
-        
-    # Add data to hdf file
-    data_df.to_hdf("data.h5", key="df")
+        df.to_csv("data.csv", index=False)
