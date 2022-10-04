@@ -46,11 +46,11 @@ def get_sample_ratio_aux(ddn, tree, belief_state, n_samples):
 
 def get_sample_ratio(ddn, tree, belief_state, n_samples):
     c_r, q_r = get_sample_ratio_aux(ddn, tree, belief_state, n_samples)
-    if c_r == 0 and q_r == 0:
+    if q_r == 0:
         r = 1
     else:
         r = c_r / q_r
-    return c_r / q_r
+    return r
 
 
 def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=False):
@@ -92,13 +92,13 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
     return avg_r, std, sample_nr, caps
 
 
-def get_metrics(ddn, tree, n_samples, reward_samples, time, num_runs, problem_name, horizon, quantum=False):
+def get_metrics(ddn, tree, n_samples, reward_samples, time, num_runs, problem_name, horizon, classical_samples, quantum=False):
     # Calculate metrics per run
     avg_rs, stds, sample_nr, caps = [], [], [], []
     
     # Iterate all runs
     run_bar = tqdm(range(num_runs), total=num_runs, desc=f"{problem_name} runs", position=1, leave=False)
-    run_bar.set_postfix(H=horizon)
+    run_bar.set_postfix(H=horizon, base_samples=classical_samples)
     for run in run_bar:
         # Get metrics for specific run
         avg_r, std, samples, cap = get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum)
@@ -192,11 +192,11 @@ def run_config(config):
     tree = get_tree(ddn, horizon)
     
     # Get metrics
-    c_avg_r, c_std, c_avg_s, _ = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Classic " + name, horizon)
-    q_avg_r, q_std, q_avg_s, caps = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Quantum " + name, horizon, True)
+    c_avg_r, c_std, c_avg_s, _ = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Classic " + name, horizon, classical_samples)
+    q_avg_r, q_std, q_avg_s, caps = get_metrics(ddn, tree, classical_samples, reward_samples, time, num_runs, "Quantum " + name, horizon, classical_samples, True)
     avg_ratio = q_avg_s / c_avg_s
     
-    # Save plots for this run
+    # Save plots for this config
     run_dict = {
         "c_avg_r": c_avg_r,
         "c_avg_std": c_std,
@@ -207,7 +207,7 @@ def run_config(config):
     }
     
     # Transform configs into dictionary for dataframe
-    df = pd.DataFrame({**config, **run_dict})
+    df = pd.DataFrame([{**config, **run_dict}])
         
     # Append results to possibly existing dataframe
     if os.path.isfile("data.h5"):
@@ -218,7 +218,3 @@ def run_config(config):
         
     # Add data to hdf file
     data_df.to_hdf("data.h5", key="df")
-    
-    
-    # saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical_samples, ratio, quantum_samples, num_runs)
-    return config, run_dict
