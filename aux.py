@@ -3,7 +3,6 @@ from get_ddns import get_tiger_ddn, get_robot_ddn, get_gridworld_ddn
 from src.utils import get_avg_reward_and_std, belief_update
 from src.networks.qbn import QuantumBayesianNetwork as QBN
 from src.networks.bn import BayesianNetwork as BN
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -53,48 +52,59 @@ def get_sample_ratio(ddn, tree, belief_state, n_samples):
     return r
 
 
-def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=False):
+def get_metrics_per_run(ddn, qddn, tree, n_samples, reward_samples, time):
     # Calculate metrics for the time-steps
-    avg_r, std, sample_nr, caps = [], [], [], []
+    avg_r, std = [], []
+    q_avg_r, q_std = [], []
+    ratios, caps = [], []
 
+    # Initialize loop
+    true_c_belief, true_q_belief = ddn.get_belief_state(), qddn.get_belief_state()
     tbar = tqdm(range(time), total=time, desc="Timestep", position=2, leave=False)
     for _ in tbar:
-        cap = 0
         # If run is quantum, change number of samples
-        if quantum:
-            ratio = get_sample_ratio(ddn, tree, ddn.get_belief_state(), reward_samples)
-            samples = int(np.ceil(ratio * n_samples))
-            
-            # Cap the maximum number of samples
-            if samples > n_samples**2:
-                samples = n_samples**2
-                cap = 1
+        ratio = get_sample_ratio(ddn, tree, ddn.get_belief_state(), reward_samples)
+        q_samples = int(np.ceil(ratio * n_samples))
+        
+        # Cap the maximum number of samples
+        if q_samples > n_samples**2:
+            q_samples = n_samples**2
+            cap = 1
         else:
-            samples = n_samples
+            cap = 0
 
         # Calculate results
-        actions = pomdp_lookahead(ddn, tree, samples)
-        avg, cur_std = get_avg_reward_and_std(ddn, ("R", 1), {**actions, **ddn.get_belief_state()}, reward_samples)
+        actions = pomdp_lookahead(ddn, tree, n_samples)
+        q_actions = pomdp_lookahead(qddn, tree, q_samples)
+        avg, cur_std = get_avg_reward_and_std(ddn, ("R", 1), {**actions, **true_c_belief}, reward_samples)
+        q_avg, q_cur_std = get_avg_reward_and_std(qddn, ("R", 1), {**q_actions, **true_q_belief}, reward_samples)
+        
+        # Belief update
         observations = ddn.sample_observation(actions)
-        ddn.belief_update(actions, observations, samples)
+        q_observations = qddn.sample_observation(q_actions)
+        ddn.belief_update(actions, observations, n_samples)
+        qddn.belief_update(q_actions, q_observations, n_samples)
+        true_c_belief = belief_update(ddn, true_c_belief, actions, observations, reward_samples)
+        true_q_belief = belief_update(ddn, true_q_belief, q_actions, q_observations, reward_samples)
 
         # Append results
         avg_r.append(avg)
         std.append(cur_std)
-        sample_nr.append(samples)
+        q_avg_r.append(q_avg)
+        q_std.append(q_cur_std)
+        ratios.append(q_samples / n_samples)
         caps.append(cap)
         
-        # Place results in the bar
-        tbar.set_postfix(avg_r=avg, std=cur_std)
-        
-    avg_r, std, sample_nr, caps = np.array(avg_r), np.array(std), np.array(sample_nr), np.array(caps)
+    avg_r, std = np.array(avg_r), np.array(std)
+    q_avg_r, q_std = np.array(q_avg_r), np.array(q_std)
+    ratios, caps = np.array(ratios), np.array(caps)
     
-    return avg_r, std, sample_nr, caps
+    return avg_r, std, q_avg_r, q_std, ratios, caps
 
 
-def get_metrics(ddn, tree, config, num_runs, time, reward_samples, quantum=False):
+def get_metrics(ddn, qddn, tree, config, num_runs, time, reward_samples):
     # Calculate metrics per run
-    avg_rs, stds, sample_nr, caps = [], [], [], []
+    avg_rs, stds, q_avg_rs, q_stds, ratios, caps = [], [], [], [], [], []
     
     # Get config parameters
     problem_name = config["problem_name"]
@@ -106,64 +116,22 @@ def get_metrics(ddn, tree, config, num_runs, time, reward_samples, quantum=False
     run_bar.set_postfix(H=horizon, base_samples=classical_samples)
     for _ in run_bar:
         # Get metrics for specific run
-        avg_r, std, samples, cap = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time, quantum)
+        avg_r, std, q_avg_r, q_std, ratio, cap = get_metrics_per_run(ddn, qddn, tree, classical_samples, reward_samples, time)
         
         # Append metrics to list
         avg_rs.append(avg_r)
         stds.append(std)
-        sample_nr.append(samples)
+        q_avg_rs.append(q_avg_r)
+        q_stds.append(q_std)
+        ratios.append(ratio)
         caps.append(cap)
         
     # Turn lists to arrays
-    avg_r, stds, sample_nr, caps = np.array(avg_rs), np.array(stds), np.array(sample_nr), np.array(caps)
+    avg_r, stds = np.array(avg_rs), np.array(stds)
+    q_avg_r, q_stds = np.array(q_avg_rs), np.array(q_stds)
+    ratios, caps = np.array(ratios), np.array(caps)
     
-    return avg_r, stds, sample_nr, caps
-
-
-def saveplots(c_avg_r, c_std, q_avg_r, q_std, name, horizon, discount, classical_samples, ratio, quantum_samples, num_runs):
-    
-    # Parameters for the plot
-    textstr = f"$H = {horizon}$"
-    textstr += f"\n$\gamma={discount}$"
-    textstr += f"\nClassical samples={classical_samples}"
-    textstr += f"\nQuantum samples={quantum_samples}"
-    textstr += f"\nRuns={num_runs}"
-    
-    # Make figure name
-    figname = name + f"H{horizon}"
-    figname += f"Ratio{ratio}"
-    figname.replace(".","dot")
-    
-    # Get cummulative rewards and standard deviations
-    c_cum_r, q_cum_r = np.cumsum(c_avg_r), np.cumsum(q_avg_r)
-    c_cum_std, q_cum_std = np.sqrt(np.cumsum(np.array(c_std)**2)), np.sqrt(np.cumsum(np.array(q_std)**2))
-
-    # Making the plot for cummulative rewards
-    x = range(len(c_cum_r))
-    plt.title("Cumulative reward over time")
-    plt.xlabel("Time-step $t$")
-    plt.ylabel("Cumulative reward")
-    plt.plot(x, c_cum_r, label="classic")
-    plt.fill_between(x, c_cum_r-c_cum_std, c_cum_r+c_cum_std, alpha=0.2)
-    plt.plot(x, q_cum_r, label="quantum")
-    plt.fill_between(x, q_cum_r-q_cum_std, q_cum_r+q_cum_std, alpha=0.2)
-    plt.gcf().text(0.95, 0.7, textstr, fontsize=10)
-    plt.legend()
-    plt.savefig(f"plots/{name}/{figname}.png", dpi=250, bbox_inches="tight")
-    plt.clf()
-    
-    # Calculate cumulative difference avg and std
-    cum_diff_avg, cum_diff_std = q_cum_r - c_cum_r, np.sqrt(np.cumsum((q_std - c_std)**2))
-
-    # Plot the differences
-    plt.title("Cumulative reward difference over time")
-    plt.xlabel("Time-step $t$")
-    plt.ylabel("Cumulative reward difference")
-    plt.plot(x, cum_diff_avg)
-    plt.fill_between(x, cum_diff_avg-cum_diff_std, cum_diff_avg+cum_diff_std, alpha=0.2)
-    plt.gcf().text(0.95, 0.7, textstr, fontsize=10)
-    plt.savefig(f"plots/{name}/{figname}Difference.png", dpi=250, bbox_inches="tight")
-    plt.clf()
+    return avg_r, stds, q_avg_r, q_stds, ratios, caps
 
 
 def run_config(config, num_runs, time, reward_samples):
@@ -187,9 +155,7 @@ def run_config(config, num_runs, time, reward_samples):
     tree = get_tree(ddn, horizon)
     
     # Get metrics
-    c_r, c_std, c_s, _ = get_metrics(ddn, tree, config, num_runs, time, reward_samples)
-    q_r, q_std, q_s, caps = get_metrics(ddn, tree, config, num_runs, time, reward_samples, True)
-    ratio = q_s / c_s
+    c_r, c_std, q_r, q_std, ratio, caps = get_metrics(ddn, ddn, tree, config, num_runs, time, reward_samples)
     
     # Save plots for this config
     run_dict = [{
