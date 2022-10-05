@@ -8,16 +8,25 @@ import numpy as np
 configs = {
     "problem_name": ["tiger", "robot", "gridworld"],
     "discount": [0.9],
-    "horizon": [2, 3],
-    "classical_samples": [5, 15, 50]
+    "horizon": [1, 2],
+    "classical_samples": [5, 10, 30]
 }
-reward_samples = 1000
+reward_samples = 500
 num_runs = 30
 time = 30
 
 # Create list of dictionaries as product of dictionary of lists
-total_configs = np.prod([len(v) for _, v in configs.items()])
-configs = product_dict(configs)
+configs = list(product_dict(configs))
+
+configs_ = {
+    "problem_name": ["tiger", "robot"],
+    "discount": [0.9],
+    "horizon": [3],
+    "classical_samples": [5, 10, 30]
+}
+
+# Create list of dictionaries as product of dictionary of lists
+configs += list(product_dict(configs_))
 
 # Create iterator function
 def foo(config):
@@ -27,4 +36,4 @@ if __name__ == "__main__":
     # Extract results from multiple runs in parallel
     with ProcessPoolExecutor() as executor:
         # Iterate each config
-        _ = list(tqdm(executor.map(foo, configs), total=total_configs, desc="Iterating configs", position=0, leave=False))
+        _ = list(tqdm(executor.map(foo, configs), total=len(configs), desc="Iterating configs", position=0, leave=False))
