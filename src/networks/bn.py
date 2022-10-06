@@ -174,7 +174,7 @@ class BayesianNetwork:
         
         # TODO: throw error when evidence DataFrame is not a root node
         
-        sample_df = pd.DataFrame()
+        samples = []
         evidence = {} if evidence is None else evidence
         backup_pts = self.encode_evidence(evidence) # Fix the value of every root node in evidence for faster inference
 
@@ -184,12 +184,11 @@ class BayesianNetwork:
             sample = self.get_sample() # Extract sample from the BN
             matches = [sample[name] == evidence[name] for name in evidence] # Store sample if it matches with evidence
             if all(matches):
-                sample = {k: [v] for k, v in sample.items()}
-                sample = pd.DataFrame(sample)
-                sample_df = pd.concat([sample_df, sample], ignore_index=True, axis=0)
+                samples.append(sample)
                 num_samples += 1
                 
         self.decode_evidence(backup_pts) # Re-change probability tables of root nodes in evidence
+        sample_df = pd.DataFrame(samples)
         sample_df = sample_df.value_counts(normalize=True).to_frame("Prob") # Turn result into probability table
         sample_df = sample_df.groupby(query).sum().sort_values(query).reset_index() # Group over query variables and sum over all other variables
 

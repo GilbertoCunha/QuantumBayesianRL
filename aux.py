@@ -52,86 +52,71 @@ def get_sample_ratio(ddn, tree, belief_state, n_samples):
     return r
 
 
-def get_metrics_per_run(ddn, qddn, tree, n_samples, reward_samples, time):
+def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=False):
     # Calculate metrics for the time-steps
-    avg_r, std = [], []
-    q_avg_r, q_std = [], []
-    ratios, caps = [], []
+    rs, stds, samples = [], [], []
 
     # Initialize loop
-    true_c_belief, true_q_belief = ddn.get_belief_state(), qddn.get_belief_state()
-    tbar = tqdm(range(time), total=time, desc="Timestep", position=2, leave=False)
+    description = "Quantum timestep" if quantum else "Classical timestep"
+    true_belief = ddn.get_belief_state()
+    tbar = tqdm(range(time), total=time, desc=description, position=2, leave=False)
     for _ in tbar:
         # If run is quantum, change number of samples
         ratio = get_sample_ratio(ddn, tree, ddn.get_belief_state(), reward_samples)
-        q_samples = int(np.ceil(ratio * n_samples))
-        
-        # Cap the maximum number of samples
-        if q_samples > n_samples**2:
-            q_samples = n_samples**2
-            cap = 1
-        else:
-            cap = 0
+        n_samples_ = int(np.ceil(ratio * n_samples))
 
         # Calculate results
-        actions = pomdp_lookahead(ddn, tree, n_samples)
-        q_actions = pomdp_lookahead(qddn, tree, q_samples)
-        avg, cur_std = get_avg_reward_and_std(ddn, ("R", 1), {**actions, **true_c_belief}, reward_samples)
-        q_avg, q_cur_std = get_avg_reward_and_std(qddn, ("R", 1), {**q_actions, **true_q_belief}, reward_samples)
+        actions = pomdp_lookahead(ddn, tree, n_samples_)
+        avg, cur_std = get_avg_reward_and_std(ddn, ("R", 1), {**actions, **true_belief}, reward_samples)
         
         # Belief update
         observations = ddn.sample_observation(actions)
-        q_observations = qddn.sample_observation(q_actions)
-        ddn.belief_update(actions, observations, n_samples)
-        qddn.belief_update(q_actions, q_observations, n_samples)
-        true_c_belief = belief_update(ddn, true_c_belief, actions, observations, reward_samples)
-        true_q_belief = belief_update(ddn, true_q_belief, q_actions, q_observations, reward_samples)
+        ddn.belief_update(actions, observations, n_samples_)
+        true_belief = belief_update(ddn, true_belief, actions, observations, reward_samples)
 
         # Append results
-        avg_r.append(avg)
-        std.append(cur_std)
-        q_avg_r.append(q_avg)
-        q_std.append(q_cur_std)
-        ratios.append(q_samples / n_samples)
-        caps.append(cap)
+        rs.append(avg)
+        stds.append(cur_std)
+        samples.append(n_samples_)
         
-    avg_r, std = np.array(avg_r), np.array(std)
-    q_avg_r, q_std = np.array(q_avg_r), np.array(q_std)
-    ratios, caps = np.array(ratios), np.array(caps)
+    rs, stds, samples = np.array(rs), np.array(stds), np.array(samples)
     
-    return avg_r, std, q_avg_r, q_std, ratios, caps
+    return rs, stds, samples
 
 
-def get_metrics(ddn, qddn, tree, config, num_runs, time, reward_samples):
+def get_metrics(ddn, tree, config, num_runs, time, reward_samples):
     # Calculate metrics per run
-    avg_rs, stds, q_avg_rs, q_stds, ratios, caps = [], [], [], [], [], []
+    r = []
     
     # Get config parameters
     problem_name = config["problem_name"]
     horizon = config["horizon"]
-    classical_samples = config["classical_samples"]
+    classical_samples = config["c_samples"]
     
     # Iterate all runs
     run_bar = tqdm(range(num_runs), total=num_runs, desc=f"{problem_name} runs", position=1, leave=False)
     run_bar.set_postfix(H=horizon, base_samples=classical_samples)
-    for _ in run_bar:
+    for run_num in run_bar:
         # Get metrics for specific run
-        avg_r, std, q_avg_r, q_std, ratio, cap = get_metrics_per_run(ddn, qddn, tree, classical_samples, reward_samples, time)
+        rs, stds, samples = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time)
+        q_rs, q_stds, q_samples = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time, True)
         
-        # Append metrics to list
-        avg_rs.append(avg_r)
-        stds.append(std)
-        q_avg_rs.append(q_avg_r)
-        q_stds.append(q_std)
-        ratios.append(ratio)
-        caps.append(cap)
-        
-    # Turn lists to arrays
-    avg_r, stds = np.array(avg_rs), np.array(stds)
-    q_avg_r, q_stds = np.array(q_avg_rs), np.array(q_stds)
-    ratios, caps = np.array(ratios), np.array(caps)
+        # Append to resulting list of dicts
+        runs = np.repeat(run_num, time)
+        ts = np.arange(time)
+        run_dict = [{
+            "run": run, 
+            "t": t, 
+            "r": r, 
+            "std": std, 
+            "q_r": q_r, 
+            "q_std": q_std, 
+            "sample": sample, 
+            "q_sample": q_sample
+        } for (run, t, r, std, q_r, q_std, sample, q_sample) in zip(runs, ts, rs, stds, q_rs, q_stds, samples, q_samples)]
+        r += run_dict
     
-    return avg_r, stds, q_avg_r, q_stds, ratios, caps
+    return r
 
 
 def run_config(config, num_runs, time, reward_samples):
@@ -155,18 +140,18 @@ def run_config(config, num_runs, time, reward_samples):
     tree = get_tree(ddn, horizon)
     
     # Get metrics
-    c_r, c_std, q_r, q_std, ratio, caps = get_metrics(ddn, ddn, tree, config, num_runs, time, reward_samples)
+    r, std, s, q_r, q_std, q_s = get_metrics(ddn, tree, config, num_runs, time, reward_samples)
     
     # Save plots for this config
     run_dict = [{
         "run_num": i,
         "time_step": j,
-        "c_r": c_r[i,j],
-        "c_std": c_std[i,j],
+        "c_r": r[i,j],
+        "c_std": std[i,j],
         "q_r": q_r[i,j],
         "q_std": q_std[i,j],
-        "ratio": ratio[i,j],
-        "cap": caps[i,j]
+        "c_samples": s[i,j],
+        "q_samples": q_s[i,j]
     } for i in range(num_runs) for j in range(time)]
     
     # Transform configs into dictionary for dataframe

@@ -2,30 +2,28 @@ from concurrent.futures import ProcessPoolExecutor
 from src.utils import product_dict
 from aux import run_config
 from tqdm import tqdm
-import numpy as np
 
 # Create configurations for the experiments
 configs = {
-    "problem_name": ["tiger", "robot", "gridworld"],
+    "problem_name": ["tiger", "robot"],
     "discount": [0.9],
-    "horizon": [1, 2],
-    "classical_samples": [5, 10, 30]
+    "horizon": [1, 2, 3],
+    "c_samples": [5, 10, 30]
 }
-reward_samples = 500
+reward_samples = 200
 num_runs = 30
 time = 30
 
 # Create list of dictionaries as product of dictionary of lists
 configs = list(product_dict(configs))
 
-configs_ = {
-    "problem_name": ["tiger", "robot"],
-    "discount": [0.9],
-    "horizon": [3],
-    "classical_samples": [5, 10, 30]
-}
-
 # Create list of dictionaries as product of dictionary of lists
+configs_ = {
+    "problem_name": ["gridworld"],
+    "discount": [0.9],
+    "horizon": [2],
+    "c_samples": [5, 10, 30]
+}
 configs += list(product_dict(configs_))
 
 # Create iterator function
