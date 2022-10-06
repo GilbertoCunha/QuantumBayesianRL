@@ -44,9 +44,7 @@ def df_binary_str_filter(df: pd.DataFrame, col: str, bin_dict: dict[int, int], v
         
 
 def df_dict_filter(df: pd.DataFrame, dict_filter: dict):
-    val_func = lambda val: f"'{val}'" if isinstance(val, str) else val
-    query_string = ' and '.join([f'({key} == "{val_func(val)}")' for key, val in dict_filter.items()])
-    return df.query(query_string)
+    return df.loc[df[dict_filter.keys()].isin(dict_filter.values()).all(axis = 1),: ]
         
         
 def belief_update(ddn: DDN, belief_state: BeliefState, actions: dict[Id, Value], observations: dict[Id, Value], n_samples: int = 100, epsilon: float = 1e-3) -> dict[Id, pd.DataFrame]:

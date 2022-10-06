@@ -5,30 +5,30 @@ from tqdm import tqdm
 
 # Create configurations for the experiments
 configs = {
-    "problem_name": ["tiger", "robot"],
+    "experiment": ["tiger", "robot"],
     "discount": [0.9],
-    "horizon": [1, 2, 3],
-    "c_samples": [5, 10, 30]
+    "horizon": [1, 2],
+    "c_samples": [5, 15, 50],
+    "r_samples": [250]
 }
-reward_samples = 200
-num_runs = 30
-time = 30
+num_runs = 50
+time = 40
 
 # Create list of dictionaries as product of dictionary of lists
 configs = list(product_dict(configs))
-
 # Create list of dictionaries as product of dictionary of lists
 configs_ = {
-    "problem_name": ["gridworld"],
+    "experiment": ["gridworld"],
     "discount": [0.9],
-    "horizon": [2],
-    "c_samples": [5, 10, 30]
+    "horizon": [1, 2],
+    "c_samples": [5, 15, 50],
+    "r_samples": [250]
 }
 configs += list(product_dict(configs_))
 
 # Create iterator function
 def foo(config):
-    return run_config(config, num_runs, time, reward_samples)
+    return run_config(config, num_runs, time)
 
 if __name__ == "__main__":
     # Extract results from multiple runs in parallel

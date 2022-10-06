@@ -84,7 +84,7 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
     return rs, stds, samples
 
 
-def get_metrics(ddn, tree, config, num_runs, time, reward_samples):
+def get_metrics(ddn, tree, config, num_runs, time):
     # Calculate metrics per run
     r = []
     
@@ -92,6 +92,7 @@ def get_metrics(ddn, tree, config, num_runs, time, reward_samples):
     problem_name = config["problem_name"]
     horizon = config["horizon"]
     classical_samples = config["c_samples"]
+    reward_samples = config["r_samples"]
     
     # Iterate all runs
     run_bar = tqdm(range(num_runs), total=num_runs, desc=f"{problem_name} runs", position=1, leave=False)
@@ -119,9 +120,9 @@ def get_metrics(ddn, tree, config, num_runs, time, reward_samples):
     return r
 
 
-def run_config(config, num_runs, time, reward_samples):
+def run_config(config, num_runs, time):
     # Extract data from config
-    name = config["problem_name"]
+    name = config["experiment"]
     discount = config["discount"]
     horizon = config["horizon"]
     
@@ -140,19 +141,7 @@ def run_config(config, num_runs, time, reward_samples):
     tree = get_tree(ddn, horizon)
     
     # Get metrics
-    r, std, s, q_r, q_std, q_s = get_metrics(ddn, tree, config, num_runs, time, reward_samples)
-    
-    # Save plots for this config
-    run_dict = [{
-        "run_num": i,
-        "time_step": j,
-        "c_r": r[i,j],
-        "c_std": std[i,j],
-        "q_r": q_r[i,j],
-        "q_std": q_std[i,j],
-        "c_samples": s[i,j],
-        "q_samples": q_s[i,j]
-    } for i in range(num_runs) for j in range(time)]
+    run_dict = get_metrics(ddn, tree, config, num_runs, time)
     
     # Transform configs into dictionary for dataframe
     df = pd.DataFrame([{**config, **run_d} for run_d in run_dict])
