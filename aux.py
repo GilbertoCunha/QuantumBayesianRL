@@ -89,7 +89,7 @@ def get_metrics(ddn, tree, config, num_runs, time):
     r = []
     
     # Get config parameters
-    problem_name = config["problem_name"]
+    problem_name = config["experiment"]
     horizon = config["horizon"]
     classical_samples = config["c_samples"]
     reward_samples = config["r_samples"]
