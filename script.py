@@ -4,27 +4,18 @@ from aux import run_config
 from tqdm import tqdm
 
 # Create configurations for the experiments
+num_runs = 40
+time = 50
 configs = {
-    "experiment": ["tiger", "robot"],
+    "experiment": ["tiger", "robot", "gridworld"],
     "discount": [0.9],
-    "horizon": [1, 2],
-    "c_samples": [5, 15, 50],
+    "horizon": [1, 2, 3],
+    "c_samples": [5, 15, 50, 100],
     "r_samples": [250]
 }
-num_runs = 50
-time = 40
 
 # Create list of dictionaries as product of dictionary of lists
 configs = list(product_dict(configs))
-# Create list of dictionaries as product of dictionary of lists
-configs_ = {
-    "experiment": ["gridworld"],
-    "discount": [0.9],
-    "horizon": [1, 2],
-    "c_samples": [5, 15, 50],
-    "r_samples": [250]
-}
-configs += list(product_dict(configs_))
 
 # Create iterator function
 def foo(config):
