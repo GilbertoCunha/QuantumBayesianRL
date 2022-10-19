@@ -1,6 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor
+from metric_collector import run_config
 from src.utils import product_dict
-from aux import run_config
 from tqdm import tqdm
 
 # Create configurations for the experiments
