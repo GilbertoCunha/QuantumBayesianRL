@@ -16,8 +16,8 @@ def get_tree(ddn, horizon):
     return tree
 
 
-def get_sample_ratio_aux(ddn, tree, belief_state, n_samples):
-    c_r, q_r = 0, 0
+def get_sample_coefficients(ddn, tree, belief_state, n_samples, quantum=False):
+    r = 0
     
     # Iterate all action nodes
     for action_tree in tree.children:
@@ -29,32 +29,33 @@ def get_sample_ratio_aux(ddn, tree, belief_state, n_samples):
             observation_nodes = ddn.get_nodes_by_type(ddn.observation_type)
             evidence = {**action, **belief_state}
             probs = ddn.query(observation_nodes, evidence, n_samples)[["Prob"]].values
-            q_r += (np.sqrt(1 / (probs + 1e-6))).sum()
-            c_r += (1 / (probs + 1e-6)).sum()
+            if quantum:
+                r += (np.sqrt(1 / (probs + 1e-6))).sum()
+            else:
+                r += (1 / (probs + 1e-6)).sum()
         
         # Recursive call
         for observation_tree in action_tree.children:
             observation = observation_tree.attributes["observation"]
             new_belief = belief_update(ddn, belief_state, action, observation, n_samples)
-            new_cr, new_qr = get_sample_ratio_aux(ddn, observation_tree, new_belief, n_samples)
-            c_r += new_cr
-            q_r += new_qr
+            new_r = get_sample_coefficients(ddn, observation_tree, new_belief, n_samples)
+            r += new_r
             
-    return c_r, q_r
+    return r
 
 
-def get_sample_ratio(ddn, tree, belief_state, n_samples):
-    c_r, q_r = get_sample_ratio_aux(ddn, tree, belief_state, n_samples)
-    if q_r == 0:
+def get_sample_ratio(cr, qr):
+    if qr == 0:
         r = 1
     else:
-        r = c_r / q_r
+        r = cr / qr
     return r
 
 
 def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=False):
     # Calculate metrics for the time-steps
     rs, stds, samples = [], [], []
+    coeffs = []
 
     # Initialize loop
     description = "Quantum timestep" if quantum else "Classical timestep"
@@ -62,8 +63,14 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
     tbar = tqdm(range(time), total=time, desc=description, position=2, leave=False)
     for _ in tbar:
         # If run is quantum, change number of samples
-        ratio = get_sample_ratio(ddn, tree, ddn.get_belief_state(), reward_samples)
-        n_samples_ = int(np.ceil(ratio * n_samples))
+        if quantum:
+            cl = get_sample_coefficients(ddn, tree, ddn.get_belief_state(), reward_samples)
+            coeff = get_sample_coefficients(ddn, tree, ddn.get_belief_state(), reward_samples, True)
+            ratio = get_sample_ratio(cl, coeff)
+            n_samples_ = int(np.ceil(ratio * n_samples))
+        else:
+            coeff = get_sample_coefficients(ddn, tree, ddn.get_belief_state(), reward_samples)
+            n_samples_ = n_samples
 
         # Calculate results
         actions = pomdp_lookahead(ddn, tree, n_samples_)
@@ -78,10 +85,11 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
         rs.append(avg)
         stds.append(cur_std)
         samples.append(n_samples_)
+        coeffs.append(coeff)
         
-    rs, stds, samples = np.array(rs), np.array(stds), np.array(samples)
+    rs, stds, samples, coeffs = np.array(rs), np.array(stds), np.array(samples), np.array(coeffs)
     
-    return rs, stds, samples
+    return rs, stds, samples, coeffs
 
 
 def get_metrics(ddn, tree, config, num_runs, time):
@@ -91,16 +99,16 @@ def get_metrics(ddn, tree, config, num_runs, time):
     # Get config parameters
     problem_name = config["experiment"]
     horizon = config["horizon"]
-    classical_samples = config["c_samples"]
-    reward_samples = config["r_samples"]
+    classical_samples = config["c_sample"]
+    reward_samples = config["r_sample"]
     
     # Iterate all runs
     run_bar = tqdm(range(num_runs), total=num_runs, desc=f"{problem_name} runs", position=1, leave=False)
     run_bar.set_postfix(H=horizon, base_samples=classical_samples)
     for run_num in run_bar:
         # Get metrics for specific run
-        rs, stds, samples = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time)
-        q_rs, q_stds, q_samples = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time, True)
+        rs, stds, _, crs = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time)
+        q_rs, q_stds, q_samples, qrs = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time, True)
         
         # Append to resulting list of dicts
         runs = np.repeat(run_num, time)
@@ -112,9 +120,10 @@ def get_metrics(ddn, tree, config, num_runs, time):
             "std": std, 
             "q_r": q_r, 
             "q_std": q_std, 
-            "sample": sample, 
-            "q_sample": q_sample
-        } for (run, t, r, std, q_r, q_std, sample, q_sample) in zip(runs, ts, rs, stds, q_rs, q_stds, samples, q_samples)]
+            "q_sample": q_sample,
+            "c_l": c_l,
+            "q_l": q_l
+        } for (run, t, r, std, q_r, q_std, q_sample, c_l, q_l) in zip(runs, ts, rs, stds, q_rs, q_stds, q_samples, crs, qrs)]
         r += run_dict
     
     return r
@@ -147,7 +156,7 @@ def run_config(config, num_runs, time):
     df = pd.DataFrame([{**config, **run_d} for run_d in run_dict])
         
     # Append results to possibly existing dataframe
-    if os.path.isfile("data.csv"):
-        df.to_csv("data.csv", mode='a', index=False, header=False)
+    if os.path.isfile("results.csv"):
+        df.to_csv("results.csv", mode='a', index=False, header=False)
     else:
-        df.to_csv("data.csv", index=False)
+        df.to_csv("results.csv", index=False)

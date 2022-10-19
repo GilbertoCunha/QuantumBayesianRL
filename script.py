@@ -4,47 +4,18 @@ from src.utils import product_dict
 from tqdm import tqdm
 
 # Create configurations for the experiments
-num_runs = 40
+num_runs = 40 
 time = 50
-"""configs = {
+configs = {
     "experiment": ["tiger", "robot", "gridworld"],
     "discount": [0.9],
-    "horizon": [1, 2, 3],
-    "c_samples": [5, 15, 50, 100],
-    "r_samples": [250]
-}"""
-configs = {
-    "experiment": ["robot", "gridworld"],
-    "discount": [0.9],
     "horizon": [2],
-    "c_samples": [50, 100],
-    "r_samples": [250]
+    "c_sample": [5, 15, 50, 100],
+    "r_sample": [250]
 }
 
 # Create list of dictionaries as product of dictionary of lists
 configs = list(product_dict(configs))
-
-configs_ = {
-    "experiment": ["gridworld"],
-    "discount": [0.9],
-    "horizon": [2],
-    "c_samples": [5, 15],
-    "r_samples": [250]
-}
-
-# Create list of dictionaries as product of dictionary of lists
-configs += list(product_dict(configs_))
-
-configs_ = {
-    "experiment": ["tiger"],
-    "discount": [0.9],
-    "horizon": [3],
-    "c_samples": [5, 15, 50, 100],
-    "r_samples": [250]
-}
-
-# Create list of dictionaries as product of dictionary of lists
-configs += list(product_dict(configs_))
 
 # Create iterator function
 def foo(config):
