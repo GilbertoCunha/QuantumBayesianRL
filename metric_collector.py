@@ -67,7 +67,7 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
             cl = get_sample_coefficients(ddn, tree, ddn.get_belief_state(), reward_samples)
             coeff = get_sample_coefficients(ddn, tree, ddn.get_belief_state(), reward_samples, True)
             ratio = get_sample_ratio(cl, coeff)
-            n_samples_ = int(np.ceil(ratio * n_samples))
+            n_samples_ = int(np.floor(ratio * n_samples))
         else:
             coeff = get_sample_coefficients(ddn, tree, ddn.get_belief_state(), reward_samples)
             n_samples_ = n_samples
@@ -92,7 +92,7 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
     return rs, stds, samples, coeffs
 
 
-def get_metrics(ddn, tree, config, num_runs, time):
+def get_metrics(ddn, qddn, tree, config, num_runs, time):
     # Calculate metrics per run
     r = []
     
@@ -108,7 +108,7 @@ def get_metrics(ddn, tree, config, num_runs, time):
     for run_num in run_bar:
         # Get metrics for specific run
         rs, stds, _, crs = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time)
-        q_rs, q_stds, q_samples, qrs = get_metrics_per_run(ddn, tree, classical_samples, reward_samples, time, True)
+        q_rs, q_stds, q_samples, qrs = get_metrics_per_run(qddn, tree, classical_samples, reward_samples, time, True)
         
         # Append to resulting list of dicts
         runs = np.repeat(run_num, time)
@@ -138,19 +138,19 @@ def run_config(config, num_runs, time):
     # Get the ddn
     if name == "tiger":
         ddn = get_tiger_ddn(BN, discount)
-        # qddn = get_tiger_ddn(QBN, discount)
+        qddn = get_tiger_ddn(QBN, discount)
     elif name == "robot":
         ddn = get_robot_ddn(BN, discount)
-        # qddn = get_robot_ddn(QBN, discount)
+        qddn = get_robot_ddn(QBN, discount)
     elif name == "gridworld":
         ddn = get_gridworld_ddn(BN, discount)
-        # qddn = get_gridworld_ddn(QBN, discount)
+        qddn = get_gridworld_ddn(QBN, discount)
     
     # Build the lookahead tree
     tree = get_tree(ddn, horizon)
     
     # Get metrics
-    run_dict = get_metrics(ddn, tree, config, num_runs, time)
+    run_dict = get_metrics(ddn, qddn, tree, config, num_runs, time)
     
     # Transform configs into dictionary for dataframe
     df = pd.DataFrame([{**config, **run_d} for run_d in run_dict])
