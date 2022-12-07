@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 import os
 
+# Define csv path
+CSV_PATH = "test.csv"
 
 def get_tree(ddn, horizon):
     action_space = ddn.get_space(ddn.action_type)
@@ -92,7 +94,7 @@ def get_metrics_per_run(ddn, tree, n_samples, reward_samples, time, quantum=Fals
     return rs, stds, samples, coeffs
 
 
-def get_metrics(ddn, qddn, tree, config, num_runs, time):
+def get_metrics(ddn, qddn, tree, config, runs, time):
     # Calculate metrics per run
     r = []
     
@@ -103,7 +105,7 @@ def get_metrics(ddn, qddn, tree, config, num_runs, time):
     reward_samples = config["r_sample"]
     
     # Iterate all runs
-    run_bar = tqdm(range(num_runs), total=num_runs, desc=f"{problem_name} runs", position=1, leave=False)
+    run_bar = tqdm(runs, total=len(runs), desc=f"{problem_name} runs", position=1, leave=False)
     run_bar.set_postfix(H=horizon, base_samples=classical_samples)
     for run_num in run_bar:
         # Get metrics for specific run
@@ -124,9 +126,15 @@ def get_metrics(ddn, qddn, tree, config, num_runs, time):
             "c_l": c_l,
             "q_l": q_l
         } for (run, t, r, std, q_r, q_std, q_sample, c_l, q_l) in zip(runs, ts, rs, stds, q_rs, q_stds, q_samples, crs, qrs)]
-        r += run_dict
-    
-    return r
+        
+        # Create dataframe of runs
+        run_df = pd.DataFrame([{**config, **run} for run in run_dict])
+        
+        # Append results to possibly existing dataframe
+        if os.path.isfile(CSV_PATH):
+            run_df.to_csv(CSV_PATH, mode='a', index=False, header=False)
+        else:
+            run_df.to_csv(CSV_PATH, index=False)
 
 
 def run_config(config, num_runs, time):
@@ -149,14 +157,16 @@ def run_config(config, num_runs, time):
     # Build the lookahead tree
     tree = get_tree(ddn, horizon)
     
-    # Get metrics
-    run_dict = get_metrics(ddn, qddn, tree, config, num_runs, time)
-    
-    # Transform configs into dictionary for dataframe
-    df = pd.DataFrame([{**config, **run_d} for run_d in run_dict])
+    # Get run list
+    runs = range(num_runs)
+    if os.path.isfile(CSV_PATH):
+        # Get existing runs
+        df = pd.read_csv(CSV_PATH)
+        df = df[df["experiment"] == name]
+        ex_runs = df["run"].unique()
         
-    # Append results to possibly existing dataframe
-    if os.path.isfile("results.csv"):
-        df.to_csv("results.csv", mode='a', index=False, header=False)
-    else:
-        df.to_csv("results.csv", index=False)
+        # Calculate remaining runs
+        runs = [run for run in runs if run not in ex_runs]
+    
+    # Get metrics
+    get_metrics(ddn, ddn, tree, config, runs, time)

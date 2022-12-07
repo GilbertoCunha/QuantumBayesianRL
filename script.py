@@ -25,4 +25,4 @@ if __name__ == "__main__":
     # Extract results from multiple runs in parallel
     with ProcessPoolExecutor() as executor:
         # Iterate each config
-        _ = list(tqdm(executor.map(foo, configs), total=len(configs), desc="Iterating configs", position=0, leave=False))
+        tqdm(executor.map(foo, configs), total=len(configs), desc="Iterating configs", position=0, leave=False)
